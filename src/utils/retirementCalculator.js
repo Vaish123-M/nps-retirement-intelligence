@@ -241,6 +241,163 @@ export function calculatePensionSustainability({
 }
 
 /**
+ * Reverse Retirement Planning Calculator
+ * Calculates required corpus and monthly contribution based on desired pension
+ * 
+ * @param {Object} params - Input parameters
+ * @param {number} params.desiredMonthlyPension - Target monthly pension amount
+ * @param {number} params.currentAge - Current age of the investor
+ * @param {number} params.retirementAge - Target retirement age
+ * @param {number} params.expectedReturn - Expected annual return rate (as percentage, e.g., 10 for 10%)
+ * @param {number} params.inflationRate - Expected inflation rate (as percentage, e.g., 6 for 6%)
+ * @param {number} params.annuityRate - Annuity rate for pension calculation (default: 6%)
+ * @param {number} params.annualStepUp - Annual increase in contribution (default: 5%)
+ * @param {number} params.currentCorpus - Existing corpus amount (default: 0)
+ * 
+ * @returns {Object} - Required corpus and monthly contribution with detailed breakdown
+ */
+export function calculateReverseRetirementPlan({
+  desiredMonthlyPension,
+  currentAge,
+  retirementAge,
+  expectedReturn,
+  inflationRate = 6,
+  annuityRate = 6,
+  annualStepUp = 5,
+  currentCorpus = 0
+}) {
+  // Validate inputs
+  if (!desiredMonthlyPension || desiredMonthlyPension <= 0) {
+    return {
+      error: 'Desired monthly pension must be greater than zero',
+      requiredCorpus: 0,
+      requiredMonthlyContribution: 0
+    };
+  }
+
+  if (retirementAge <= currentAge) {
+    return {
+      error: 'Retirement age must be greater than current age',
+      requiredCorpus: 0,
+      requiredMonthlyContribution: 0
+    };
+  }
+
+  // ============================================================
+  // STEP 1: Calculate Required Corpus from Desired Pension
+  // ============================================================
+  
+  // Formula: Required Annuity Amount = (Monthly Pension × 12) / Annuity Rate
+  // Since NPS mandates 40% for annuity, Total Corpus = Annuity Amount / 0.4
+  
+  const annualPension = desiredMonthlyPension * 12;
+  const annuityRateDecimal = annuityRate / 100;
+  
+  // Calculate required annuity amount to generate desired pension
+  const requiredAnnuityAmount = annualPension / annuityRateDecimal;
+  
+  // Calculate total corpus required (since 40% goes to annuity)
+  const requiredNominalCorpus = requiredAnnuityAmount / 0.4;
+  
+  // Calculate the remaining 60% that will be lump sum
+  const projectedLumpSum = requiredNominalCorpus * 0.6;
+
+  // ============================================================
+  // STEP 2: Adjust for Inflation (Future Value)
+  // ============================================================
+  
+  // The corpus we calculated is in today's terms
+  // We need to inflate it to future value at retirement
+  const yearsToRetirement = retirementAge - currentAge;
+  const inflationRateDecimal = inflationRate / 100;
+  
+  // Future Value = Present Value × (1 + inflation)^years
+  const requiredFutureCorpus = requiredNominalCorpus * Math.pow(1 + inflationRateDecimal, yearsToRetirement);
+
+  // ============================================================
+  // STEP 3: Calculate Required Monthly Contribution
+  // ============================================================
+  
+  // Use the existing calculateRequiredContribution function
+  const requiredMonthlyContribution = calculateRequiredContribution({
+    targetCorpus: requiredFutureCorpus,
+    currentAge,
+    retirementAge,
+    expectedAnnualReturn: expectedReturn,
+    annualStepUp,
+    currentCorpus,
+    inflationRate
+  });
+
+  // ============================================================
+  // STEP 4: Verify with Forward Calculation
+  // ============================================================
+  
+  // Calculate what corpus the required contribution will actually generate
+  const verificationResult = calculateRetirementCorpus({
+    currentAge,
+    retirementAge,
+    monthlyContribution: requiredMonthlyContribution,
+    expectedAnnualReturn: expectedReturn,
+    annualStepUp,
+    currentCorpus,
+    inflationRate
+  });
+
+  // ============================================================
+  // STEP 5: Calculate Sustainability Metrics
+  // ============================================================
+  
+  // Check how long the lump sum can sustain the desired expenses
+  const sustainabilityResult = calculatePensionSustainability({
+    lumpSumAmount: projectedLumpSum,
+    monthlyExpense: desiredMonthlyPension,
+    postRetirementReturn: 7,
+    inflationRate
+  });
+
+  return {
+    // Required amounts
+    requiredCorpus: Math.round(requiredNominalCorpus),
+    requiredFutureCorpus: Math.round(requiredFutureCorpus),
+    requiredMonthlyContribution: Math.round(requiredMonthlyContribution),
+    
+    // Corpus breakdown
+    annuityPortion: Math.round(requiredAnnuityAmount),
+    lumpSumPortion: Math.round(projectedLumpSum),
+    
+    // Pension details
+    desiredMonthlyPension: Math.round(desiredMonthlyPension),
+    desiredAnnualPension: Math.round(annualPension),
+    annuityRate,
+    
+    // Timeline
+    yearsToRetirement,
+    currentAge,
+    retirementAge,
+    
+    // Inflation impact
+    inflationRate,
+    inflationMultiplier: parseFloat(Math.pow(1 + inflationRateDecimal, yearsToRetirement).toFixed(2)),
+    
+    // Verification
+    projectedCorpus: verificationResult.nominalCorpus,
+    achievementRatio: Math.round((verificationResult.nominalCorpus / requiredFutureCorpus) * 100),
+    
+    // Contribution details
+    totalContributions: verificationResult.totalContributions,
+    totalReturns: verificationResult.totalReturns,
+    
+    // Sustainability
+    yearsSustainable: sustainabilityResult.yearsOfSustainability,
+    sustainabilityScore: sustainabilityResult.sustainabilityScore,
+    
+    // Summary message
+    summary: `To receive ₹${Math.round(desiredMonthlyPension).toLocaleString('en-IN')} monthly pension at retirement, you need a corpus of ₹${Math.round(requiredFutureCorpus).toLocaleString('en-IN')} (future value). This requires monthly contributions of ₹${Math.round(requiredMonthlyContribution).toLocaleString('en-IN')} for ${yearsToRetirement} years.`
+  };
+}
+
+/**
  * Pension Estimation and Sustainability Simulation
  * Simulates year-by-year pension withdrawals with post-retirement returns
  * to determine how long the corpus will last

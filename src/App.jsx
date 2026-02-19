@@ -6,7 +6,8 @@ import {
   calculatePensionSustainability,
   simulatePensionSustainability,
   calculateRequiredContribution,
-  calculateRetirementReadiness
+  calculateRetirementReadiness,
+  calculateReverseRetirementPlan
 } from './utils/retirementCalculator'
 
 function App() {
@@ -38,6 +39,9 @@ function App() {
     readinessLevel: 'Poor',
     yearlyProjection: []
   })
+
+  // Reverse planning results state
+  const [reversePlanResults, setReversePlanResults] = useState(null)
 
   // Scenario return rates
   const scenarioRates = {
@@ -133,6 +137,30 @@ function App() {
     setInputs(prev => ({
       ...prev,
       monthlyContribution: requiredContribution
+    }))
+  }
+
+  const handleReversePensionPlanner = () => {
+    const expectedAnnualReturn = scenarioRates[scenario]
+    
+    // Calculate reverse plan based on desired monthly pension
+    const reversePlan = calculateReverseRetirementPlan({
+      desiredMonthlyPension: inputs.expectedMonthlyExpense,
+      currentAge: inputs.currentAge,
+      retirementAge: inputs.retirementAge,
+      expectedReturn: expectedAnnualReturn,
+      inflationRate: inputs.inflationRate,
+      annualStepUp: inputs.annualStepUp,
+      currentCorpus: inputs.currentCorpus
+    })
+
+    setReversePlanResults(reversePlan)
+    
+    // Optionally update the inputs with calculated values
+    setInputs(prev => ({
+      ...prev,
+      targetCorpus: reversePlan.requiredFutureCorpus,
+      monthlyContribution: reversePlan.requiredMonthlyContribution
     }))
   }
 
@@ -325,9 +353,18 @@ function App() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
+                <button 
+                  onClick={handleReverseCalculation}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md transition-colors"
+                >
+                  Calculate Required Contribution
+                </button>
+
+                <div className="border-t border-gray-200 my-4"></div>
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Expected Monthly Expense (₹)
+                    Desired Monthly Pension (₹)
                   </label>
                   <input
                     type="number"
@@ -336,15 +373,53 @@ function App() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Expected monthly expenses after retirement
+                    Target monthly pension after retirement
                   </p>
                 </div>
                 <button 
-                  onClick={handleReverseCalculation}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md transition-colors"
+                  onClick={handleReversePensionPlanner}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-md transition-colors"
                 >
-                  Calculate Required Contribution
+                  Calculate Corpus & Contribution from Pension
                 </button>
+
+                {/* Reverse Planning Results */}
+                {reversePlanResults && !reversePlanResults.error && (
+                  <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div className="text-sm font-semibold text-purple-800 mb-3">
+                      Reverse Planning Results:
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Required Corpus:</span>
+                        <span className="font-semibold text-gray-800">
+                          {formatCurrency(reversePlanResults.requiredFutureCorpus)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Monthly Contribution:</span>
+                        <span className="font-semibold text-purple-700">
+                          {formatCurrency(reversePlanResults.requiredMonthlyContribution)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total to Invest:</span>
+                        <span className="font-semibold text-gray-800">
+                          {formatCurrency(reversePlanResults.totalContributions)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Expected Returns:</span>
+                        <span className="font-semibold text-green-600">
+                          {formatCurrency(reversePlanResults.totalReturns)}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-3 pt-2 border-t border-purple-200">
+                        {reversePlanResults.summary}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
