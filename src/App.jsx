@@ -19,6 +19,7 @@ function App() {
     monthlyContribution: 10000,
     currentCorpus: 0,
     annualStepUp: 5,
+    inflationRate: 6,
     expectedMonthlyExpense: 50000,
     targetCorpus: 10000000
   })
@@ -58,7 +59,8 @@ function App() {
       monthlyContribution: inputs.monthlyContribution,
       expectedAnnualReturn,
       annualStepUp: inputs.annualStepUp,
-      currentCorpus: inputs.currentCorpus
+      currentCorpus: inputs.currentCorpus,
+      inflationRate: inputs.inflationRate
     })
 
     // Step 2: Calculate NPS withdrawal breakdown
@@ -69,7 +71,7 @@ function App() {
       lumpSumAmount: withdrawalResult.lumpSumAmount,
       monthlyExpense: inputs.expectedMonthlyExpense,
       postRetirementReturn: 7,
-      inflationRate: 6
+      inflationRate: inputs.inflationRate
     })
 
     // Step 4: Calculate retirement readiness score
@@ -85,6 +87,8 @@ function App() {
 
     // Update results state
     setResults({
+      nominalCorpus: corpusResult.nominalCorpus,
+      inflationAdjustedCorpus: corpusResult.inflationAdjustedCorpus,
       totalCorpus: corpusResult.totalCorpus,
       totalContributions: corpusResult.totalContributions,
       totalReturns: corpusResult.totalReturns,
@@ -115,7 +119,8 @@ function App() {
       retirementAge: inputs.retirementAge,
       expectedAnnualReturn,
       annualStepUp: inputs.annualStepUp,
-      currentCorpus: inputs.currentCorpus
+      currentCorpus: inputs.currentCorpus,
+      inflationRate: inputs.inflationRate
     })
 
     setInputs(prev => ({
@@ -219,6 +224,21 @@ function App() {
                     Yearly increase in contribution
                   </p>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Inflation Rate (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={inputs.inflationRate}
+                    onChange={(e) => handleInputChange('inflationRate', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Expected annual inflation rate
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -318,15 +338,33 @@ function App() {
                 Retirement Results
               </h2>
               <div className="space-y-4">
+                {/* Nominal Corpus (Future Value) */}
                 <div className="bg-linear-to-r from-blue-50 to-blue-100 rounded-lg p-4">
-                  <div className="text-sm text-gray-600 mb-1">Total Corpus at Retirement</div>
+                  <div className="text-sm text-gray-600 mb-1">Nominal Corpus (Future Value)</div>
                   <div className="text-3xl font-bold text-blue-700">
-                    {formatCurrency(results.totalCorpus)}
+                    {formatCurrency(results.nominalCorpus || results.totalCorpus)}
                   </div>
                   <div className="text-xs text-gray-600 mt-2">
                     At age {inputs.retirementAge} • {inputs.retirementAge - inputs.currentAge} years
                   </div>
                 </div>
+
+                {/* Inflation-Adjusted Corpus (Real Value) */}
+                <div className="bg-linear-to-r from-green-50 to-green-100 rounded-lg p-4 border-2 border-green-200">
+                  <div className="text-sm text-gray-600 mb-1 flex items-center justify-between">
+                    <span>Real Value (Today's Money)</span>
+                    <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
+                      @ {inputs.inflationRate}% inflation
+                    </span>
+                  </div>
+                  <div className="text-3xl font-bold text-green-700">
+                    {formatCurrency(results.inflationAdjustedCorpus || 0)}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-2">
+                    Purchasing power equivalent in today's terms
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-50 rounded-lg p-3">
                     <div className="text-xs text-gray-600 mb-1">Annuity Purchase (40%)</div>

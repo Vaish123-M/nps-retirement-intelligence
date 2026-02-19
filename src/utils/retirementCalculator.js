@@ -13,8 +13,9 @@
  * @param {number} expectedAnnualReturn - Expected annual return rate (as percentage, e.g., 10 for 10%)
  * @param {number} annualStepUp - Annual increase in contribution (as percentage, e.g., 5 for 5%)
  * @param {number} currentCorpus - Existing corpus amount (default: 0)
+ * @param {number} inflationRate - Expected inflation rate (as percentage, e.g., 6 for 6%)
  * 
- * @returns {Object} - Contains totalCorpus and yearlyProjection array
+ * @returns {Object} - Contains nominal and inflation-adjusted corpus values
  */
 export function calculateRetirementCorpus({
   currentAge,
@@ -22,7 +23,8 @@ export function calculateRetirementCorpus({
   monthlyContribution,
   expectedAnnualReturn,
   annualStepUp = 0,
-  currentCorpus = 0
+  currentCorpus = 0,
+  inflationRate = 6
 }) {
   // Validate inputs
   if (retirementAge <= currentAge) {
@@ -104,11 +106,25 @@ export function calculateRetirementCorpus({
   // Calculate total returns earned
   const totalReturns = accumulatedCorpus - totalContributions - currentCorpus;
 
+  // Calculate inflation-adjusted corpus (real value in today's money)
+  // Formula: RealValue = FutureValue / (1 + inflationRate)^years
+  const inflationRateDecimal = inflationRate / 100;
+  const inflationAdjustedCorpus = accumulatedCorpus / Math.pow(1 + inflationRateDecimal, yearsToRetirement);
+
   return {
-    totalCorpus: Math.round(accumulatedCorpus),
+    // Nominal corpus (future value without inflation adjustment)
+    nominalCorpus: Math.round(accumulatedCorpus),
+    totalCorpus: Math.round(accumulatedCorpus), // Keep for backward compatibility
+    
+    // Real corpus (inflation-adjusted value in today's money)
+    inflationAdjustedCorpus: Math.round(inflationAdjustedCorpus),
+    realCorpus: Math.round(inflationAdjustedCorpus), // Alias for clarity
+    
+    // Other details
     totalContributions: Math.round(totalContributions),
     totalReturns: Math.round(totalReturns),
     initialCorpus: currentCorpus,
+    inflationRate,
     yearlyProjection,
     yearsToRetirement,
     finalAge: retirementAge
@@ -234,6 +250,7 @@ export function calculatePensionSustainability({
  * @param {number} expectedAnnualReturn - Expected annual return rate (percentage)
  * @param {number} annualStepUp - Annual increase in contribution (percentage)
  * @param {number} currentCorpus - Existing corpus amount
+ * @param {number} inflationRate - Expected inflation rate (percentage)
  * 
  * @returns {number} - Required initial monthly contribution
  */
@@ -243,7 +260,8 @@ export function calculateRequiredContribution({
   retirementAge,
   expectedAnnualReturn,
   annualStepUp = 0,
-  currentCorpus = 0
+  currentCorpus = 0,
+  inflationRate = 6
 }) {
   // Binary search to find the required contribution
   let low = 0;
@@ -261,7 +279,8 @@ export function calculateRequiredContribution({
       monthlyContribution: mid,
       expectedAnnualReturn,
       annualStepUp,
-      currentCorpus
+      currentCorpus,
+      inflationRate
     });
 
     if (Math.abs(result.totalCorpus - targetCorpus) <= tolerance) {
