@@ -4,6 +4,7 @@ import {
   calculateRetirementCorpus,
   calculateNPSWithdrawal,
   calculatePensionSustainability,
+  simulatePensionSustainability,
   calculateRequiredContribution,
   calculateRetirementReadiness
 } from './utils/retirementCalculator'

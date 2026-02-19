@@ -241,6 +241,152 @@ export function calculatePensionSustainability({
 }
 
 /**
+ * Pension Estimation and Sustainability Simulation
+ * Simulates year-by-year pension withdrawals with post-retirement returns
+ * to determine how long the corpus will last
+ * 
+ * @param {number} totalCorpus - Total retirement corpus available
+ * @param {number} postRetirementReturnRate - Expected return rate after retirement (as percentage, e.g., 7 for 7%)
+ * @param {number} desiredMonthlyPension - Desired monthly pension amount
+ * @param {number} retirementAge - Age at retirement
+ * @param {number} lifeExpectancyAge - Expected life expectancy age
+ * 
+ * @returns {Object} - Sustainability analysis with status and projections
+ */
+export function simulatePensionSustainability({
+  totalCorpus,
+  postRetirementReturnRate,
+  desiredMonthlyPension,
+  retirementAge,
+  lifeExpectancyAge
+}) {
+  // Validate inputs
+  if (totalCorpus <= 0 || desiredMonthlyPension <= 0) {
+    return {
+      yearsSustainable: 0,
+      sustainabilityStatus: 'Risky',
+      remainingCorpusAtLifeExpectancy: 0,
+      yearlyBreakdown: []
+    };
+  }
+
+  if (lifeExpectancyAge <= retirementAge) {
+    return {
+      yearsSustainable: 0,
+      sustainabilityStatus: 'Invalid',
+      remainingCorpusAtLifeExpectancy: totalCorpus,
+      yearlyBreakdown: []
+    };
+  }
+
+  // Convert percentage to decimal for calculations
+  const annualReturnRate = postRetirementReturnRate / 100;
+  
+  // Calculate annual pension requirement (monthly × 12)
+  const annualPensionRequirement = desiredMonthlyPension * 12;
+  
+  // Calculate expected retirement span
+  const expectedRetirementYears = lifeExpectancyAge - retirementAge;
+  
+  // Initialize simulation variables
+  let remainingCorpus = totalCorpus;
+  let currentAge = retirementAge;
+  let yearsSustainable = 0;
+  const yearlyBreakdown = [];
+
+  // Store initial state (Year 0)
+  yearlyBreakdown.push({
+    year: 0,
+    age: retirementAge,
+    startingCorpus: totalCorpus,
+    returnsEarned: 0,
+    pensionWithdrawn: 0,
+    endingCorpus: totalCorpus
+  });
+
+  // Simulate year by year until corpus depletes or life expectancy reached
+  for (let year = 1; year <= expectedRetirementYears; year++) {
+    currentAge = retirementAge + year;
+    
+    // Step 1: Apply post-retirement return on the corpus at the start of the year
+    const returnsEarned = remainingCorpus * annualReturnRate;
+    const corpusAfterReturns = remainingCorpus + returnsEarned;
+    
+    // Step 2: Withdraw annual pension requirement
+    const pensionWithdrawn = Math.min(annualPensionRequirement, corpusAfterReturns);
+    const corpusAfterWithdrawal = corpusAfterReturns - pensionWithdrawn;
+    
+    // Step 3: Check if corpus can sustain another year
+    if (corpusAfterWithdrawal <= 0) {
+      // Corpus depleted - record final year and break
+      yearlyBreakdown.push({
+        year,
+        age: currentAge,
+        startingCorpus: Math.round(remainingCorpus),
+        returnsEarned: Math.round(returnsEarned),
+        pensionWithdrawn: Math.round(pensionWithdrawn),
+        endingCorpus: 0
+      });
+      
+      yearsSustainable = year;
+      remainingCorpus = 0;
+      break;
+    }
+    
+    // Step 4: Record year's data
+    yearlyBreakdown.push({
+      year,
+      age: currentAge,
+      startingCorpus: Math.round(remainingCorpus),
+      returnsEarned: Math.round(returnsEarned),
+      pensionWithdrawn: Math.round(pensionWithdrawn),
+      endingCorpus: Math.round(corpusAfterWithdrawal)
+    });
+    
+    // Step 5: Update remaining corpus for next iteration
+    remainingCorpus = corpusAfterWithdrawal;
+    yearsSustainable = year;
+  }
+
+  // Calculate remaining corpus at life expectancy
+  const remainingCorpusAtLifeExpectancy = Math.round(remainingCorpus);
+
+  // Determine sustainability status
+  let sustainabilityStatus;
+  const sustainabilityPercentage = (yearsSustainable / expectedRetirementYears) * 100;
+  
+  if (sustainabilityPercentage >= 100) {
+    // Corpus lasts beyond life expectancy - Safe
+    sustainabilityStatus = 'Safe';
+  } else if (sustainabilityPercentage >= 75) {
+    // Corpus lasts at least 75% of expected retirement - Moderate
+    sustainabilityStatus = 'Moderate';
+  } else {
+    // Corpus depletes too early - Risky
+    sustainabilityStatus = 'Risky';
+  }
+
+  // Calculate coverage percentage
+  const coveragePercentage = Math.min(sustainabilityPercentage, 100);
+
+  return {
+    // Primary metrics
+    yearsSustainable,
+    sustainabilityStatus,
+    remainingCorpusAtLifeExpectancy,
+    
+    // Additional analysis
+    expectedRetirementYears,
+    coveragePercentage: Math.round(coveragePercentage),
+    annualPensionRequirement: Math.round(annualPensionRequirement),
+    isCorpusSufficient: yearsSustainable >= expectedRetirementYears,
+    
+    // Detailed breakdown for visualization
+    yearlyBreakdown
+  };
+}
+
+/**
  * Calculate required monthly contribution to achieve target corpus
  * Reverse calculation for goal-based planning
  * 
