@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import './App.css'
 import {
   Chart as ChartJS,
@@ -16,11 +16,16 @@ import {
   calculateRetirementCorpus,
   calculateNPSWithdrawal,
   calculatePensionSustainability,
-  simulatePensionSustainability,
   calculateRequiredContribution,
   calculateRetirementReadiness,
   calculateReverseRetirementPlan
 } from './utils/retirementCalculator'
+
+const scenarioRates = {
+  conservative: 8,
+  moderate: 10,
+  aggressive: 12
+}
 
 // Register Chart.js components
 ChartJS.register(
@@ -51,54 +56,12 @@ function App() {
     targetCorpus: 10000000
   })
 
-  // Calculation results state
-  const [results, setResults] = useState({
-    totalCorpus: 0,
-    annuityAmount: 0,
-    lumpSumAmount: 0,
-    monthlyPension: 0,
-    yearsOfSustainability: 0,
-    sustainabilityScore: 0,
-    readinessScore: 0,
-    readinessLevel: 'Poor',
-    yearlyProjection: []
-  })
-
   // Reverse planning results state
   const [reversePlanResults, setReversePlanResults] = useState(null)
 
-  // Scenario comparison results state
-  const [scenarioComparison, setScenarioComparison] = useState({
-    conservative: null,
-    moderate: null,
-    aggressive: null
-  })
+  const [desiredPension, setDesiredPension] = useState(50000)
 
-  // Pension gap analyzer state
-  const [pensionGap, setPensionGap] = useState({
-    desiredPension: 50000,
-    estimatedPension: 0,
-    gapAmount: 0,
-    gapPercentage: 0,
-    hasGap: false,
-    suggestedContributionIncrease: 0
-  })
-
-  // Scenario return rates
-  const scenarioRates = {
-    conservative: 8,
-    moderate: 10,
-    aggressive: 12
-  }
-
-  // Calculate results whenever inputs or scenario changes
-  useEffect(() => {
-    calculateResults()
-    calculateAllScenariosComparison()
-    calculatePensionGap()
-  }, [inputs, scenario, results.monthlyPension])
-
-  const calculateResults = () => {
+  const results = useMemo(() => {
     const expectedAnnualReturn = scenarioRates[scenario]
 
     // Step 1: Calculate retirement corpus
@@ -135,8 +98,7 @@ function App() {
       projectedCorpus: corpusResult.totalCorpus
     })
 
-    // Update results state
-    setResults({
+    return {
       nominalCorpus: corpusResult.nominalCorpus,
       inflationAdjustedCorpus: corpusResult.inflationAdjustedCorpus,
       totalCorpus: corpusResult.totalCorpus,
@@ -154,10 +116,10 @@ function App() {
       readinessExplanation: readinessResult.explanationMessage,
       scoringBreakdown: readinessResult.scoringBreakdown,
       yearlyProjection: corpusResult.yearlyProjection
-    })
-  }
+    }
+  }, [inputs, scenario])
 
-  const calculateAllScenariosComparison = () => {
+  const scenarioComparison = useMemo(() => {
     const scenarios = ['conservative', 'moderate', 'aggressive']
     const comparisonResults = {}
 
@@ -191,11 +153,11 @@ function App() {
       }
     })
 
-    setScenarioComparison(comparisonResults)
-  }
+    return comparisonResults
+  }, [inputs])
 
-  const calculatePensionGap = () => {
-    const desired = pensionGap.desiredPension
+  const pensionGap = useMemo(() => {
+    const desired = desiredPension
     const estimated = results.monthlyPension
     const gap = desired - estimated
     const gapPercent = desired > 0 ? (gap / desired) * 100 : 0
@@ -211,21 +173,18 @@ function App() {
       suggestedIncrease = Math.round(currentContribution * gapRatio * 0.5) // 50% of proportional increase as estimate
     }
 
-    setPensionGap({
+    return {
       desiredPension: desired,
       estimatedPension: estimated,
       gapAmount: gap,
       gapPercentage: gapPercent,
       hasGap: hasGap,
       suggestedContributionIncrease: suggestedIncrease
-    })
-  }
+    }
+  }, [desiredPension, results.monthlyPension, inputs.monthlyContribution])
 
   const handlePensionGapInputChange = (value) => {
-    setPensionGap(prev => ({
-      ...prev,
-      desiredPension: parseFloat(value) || 0
-    }))
+    setDesiredPension(parseFloat(value) || 0)
   }
 
   const handleInputChange = (field, value) => {
@@ -304,17 +263,17 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 items-start">
           
           {/* Left Column: Input Controls */}
-          <div className="space-y-6">
+          <div className="space-y-6 min-w-0">
             
             {/* Basic Inputs Card */}
-            <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="bg-white rounded-lg shadow-md p-6 h-full">
               <h2 className="text-xl font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
                 Basic Inputs
               </h2>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Current Age
@@ -388,7 +347,7 @@ function App() {
                     Expected annual inflation rate
                   </p>
                 </div>
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Last Monthly Salary (₹)
                   </label>
@@ -406,42 +365,42 @@ function App() {
             </div>
 
             {/* Scenario Selection Card */}
-            <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="bg-white rounded-lg shadow-md p-6 h-full">
               <h2 className="text-xl font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
                 Investment Scenario
               </h2>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <button
                   onClick={() => setScenario('conservative')}
-                  className={`py-3 px-4 rounded-lg font-medium transition-all ${
+                  className={`py-3 px-4 rounded-lg font-medium transition-all min-h-22 ${
                     scenario === 'conservative'
                       ? 'bg-blue-600 text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  <div className="text-xs mb-1">Conservative</div>
+                  <div className="text-xs mb-1 leading-tight">Conservative</div>
                   <div className="text-lg font-bold">8%</div>
                 </button>
                 <button
                   onClick={() => setScenario('moderate')}
-                  className={`py-3 px-4 rounded-lg font-medium transition-all ${
+                  className={`py-3 px-4 rounded-lg font-medium transition-all min-h-22 ${
                     scenario === 'moderate'
                       ? 'bg-blue-600 text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  <div className="text-xs mb-1">Moderate</div>
+                  <div className="text-xs mb-1 leading-tight">Moderate</div>
                   <div className="text-lg font-bold">10%</div>
                 </button>
                 <button
                   onClick={() => setScenario('aggressive')}
-                  className={`py-3 px-4 rounded-lg font-medium transition-all ${
+                  className={`py-3 px-4 rounded-lg font-medium transition-all min-h-22 ${
                     scenario === 'aggressive'
                       ? 'bg-blue-600 text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  <div className="text-xs mb-1">Aggressive</div>
+                  <div className="text-xs mb-1 leading-tight">Aggressive</div>
                   <div className="text-lg font-bold">12%</div>
                 </button>
               </div>
@@ -451,10 +410,113 @@ function App() {
             </div>
 
           </div>
+
+          {/* Right Column: Readiness Score */}
+          <div className="space-y-6 min-w-0">
+            {/* Retirement Readiness Score Card */}
+            <div className="bg-white rounded-lg shadow-md p-6 h-full">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
+                Retirement Readiness Score
+              </h2>
+              <div className="flex flex-col items-center justify-center py-6">
+                <div className="relative w-40 h-40">
+                  <svg className="transform -rotate-90 w-40 h-40">
+                    <circle
+                      cx="80"
+                      cy="80"
+                      r="70"
+                      stroke="#e5e7eb"
+                      strokeWidth="12"
+                      fill="transparent"
+                    />
+                    <circle
+                      cx="80"
+                      cy="80"
+                      r="70"
+                      stroke={results.readinessColor || '#3b82f6'}
+                      strokeWidth="12"
+                      fill="transparent"
+                      strokeDasharray={`${(results.readinessScore || 0) * 4.4} ${440 - (results.readinessScore || 0) * 4.4}`}
+                      strokeLinecap="round"
+                      className="transition-all duration-1000"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="text-4xl font-bold text-gray-800">{results.readinessScore || 0}</div>
+                      <div className="text-xs text-gray-500">out of 100</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 text-center">
+                  {/* Color-coded label badge */}
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <div
+                      className="w-4 h-4 rounded-full"
+                      style={{ backgroundColor: results.readinessColor || '#9ca3af' }}
+                    ></div>
+                    <div className="text-lg font-bold" style={{ color: results.readinessColor || '#6b7280' }}>
+                      {results.readinessLabel || 'N/A'} Zone
+                    </div>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-700">
+                    {results.readinessStatus || 'Calculating...'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Scoring Breakdown */}
+              {results.scoringBreakdown && results.scoringBreakdown.length > 0 && (
+                <div className="mt-4 space-y-3 border-t border-gray-200 pt-4">
+                  <div className="text-sm font-semibold text-gray-700 mb-2">Score Breakdown:</div>
+                  {results.scoringBreakdown.map((item, index) => (
+                    <div key={index} className="flex items-start justify-between gap-3 text-xs">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-700">{item.factor}</div>
+                        <div className="text-gray-500 wrap-break-word">{item.value} • {item.status}</div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-bold text-gray-800">{item.score}</span>
+                        <span className="text-gray-500">/{item.maxScore}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Color Legend */}
+              <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-gray-200">
+                <div className="text-center">
+                  <div className="text-xs text-gray-600 mb-1">Red</div>
+                  <div className="w-full h-2 bg-red-500 rounded"></div>
+                  <div className="text-xs text-gray-400 mt-1">0-50</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-600 mb-1">Yellow</div>
+                  <div className="w-full h-2 bg-yellow-500 rounded"></div>
+                  <div className="text-xs text-gray-400 mt-1">50-75</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-600 mb-1">Green</div>
+                  <div className="w-full h-2 bg-green-500 rounded"></div>
+                  <div className="text-xs text-gray-400 mt-1">75-100</div>
+                </div>
+              </div>
+
+              {/* Explanation Message */}
+              {results.readinessExplanation && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xs text-gray-700 whitespace-pre-line">
+                    {results.readinessExplanation}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Scenario Comparison Section - Full Width */}
-        <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+        <div className="mt-8 bg-white rounded-lg shadow-md p-6 h-full">
           <h2 className="text-2xl font-bold text-gray-800 mb-2">
             Scenario Comparison
           </h2>
@@ -462,10 +524,10 @@ function App() {
             Compare retirement outcomes across different risk-return profiles
           </p>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6 items-stretch">
               {/* Conservative Scenario */}
               {scenarioComparison.conservative && (
-                <div className="relative bg-linear-to-br from-blue-50 to-blue-100 rounded-lg p-5 border-2 border-blue-300 hover:shadow-lg transition-shadow">
+                <div className="relative min-w-0 overflow-hidden bg-linear-to-br from-blue-50 to-blue-100 rounded-lg p-5 pr-24 border-2 border-blue-300 hover:shadow-lg transition-shadow">
                   <div className="absolute top-3 right-3">
                     <span className="bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
                       Low Risk
@@ -473,7 +535,7 @@ function App() {
                   </div>
                   <div className="mb-4">
                     <h3 className="text-lg font-bold text-blue-800 mb-1">Conservative</h3>
-                    <div className="text-3xl font-bold text-blue-900">
+                    <div className="text-2xl md:text-3xl font-bold text-blue-900 wrap-break-word">
                       {scenarioComparison.conservative.returnRate}%
                     </div>
                     <div className="text-xs text-blue-700 mt-1">Expected Return</div>
@@ -482,7 +544,7 @@ function App() {
                   <div className="space-y-3 border-t border-blue-300 pt-3">
                     <div>
                       <div className="text-xs text-blue-700 mb-1">Retirement Corpus</div>
-                      <div className="text-xl font-bold text-blue-900">
+                      <div className="text-lg md:text-xl font-bold text-blue-900 wrap-break-word">
                         {formatCurrency(scenarioComparison.conservative.nominalCorpus)}
                       </div>
                       <div className="text-xs text-blue-600 mt-0.5">
@@ -492,12 +554,12 @@ function App() {
                     
                     <div className="bg-white bg-opacity-60 rounded p-2">
                       <div className="text-xs text-blue-700 mb-1">Monthly Pension</div>
-                      <div className="text-lg font-semibold text-blue-900">
+                      <div className="text-base md:text-lg font-semibold text-blue-900 wrap-break-word">
                         {formatCurrency(scenarioComparison.conservative.monthlyPension)}
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       <div>
                         <div className="text-blue-600">Invested</div>
                         <div className="font-semibold text-blue-800">
@@ -528,7 +590,7 @@ function App() {
 
               {/* Moderate Scenario */}
               {scenarioComparison.moderate && (
-                <div className="relative bg-linear-to-br from-green-50 to-green-100 rounded-lg p-5 border-2 border-green-400 hover:shadow-xl transition-all transform hover:scale-105">
+                <div className="relative min-w-0 overflow-hidden bg-linear-to-br from-green-50 to-green-100 rounded-lg p-5 pr-24 border-2 border-green-400 hover:shadow-xl transition-all">
                   <div className="absolute top-3 right-3">
                     <span className="bg-green-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
                       Balanced
@@ -536,7 +598,7 @@ function App() {
                   </div>
                   <div className="mb-4">
                     <h3 className="text-lg font-bold text-green-800 mb-1">Moderate</h3>
-                    <div className="text-3xl font-bold text-green-900">
+                    <div className="text-2xl md:text-3xl font-bold text-green-900 wrap-break-word">
                       {scenarioComparison.moderate.returnRate}%
                     </div>
                     <div className="text-xs text-green-700 mt-1">Expected Return</div>
@@ -545,7 +607,7 @@ function App() {
                   <div className="space-y-3 border-t border-green-300 pt-3">
                     <div>
                       <div className="text-xs text-green-700 mb-1">Retirement Corpus</div>
-                      <div className="text-xl font-bold text-green-900">
+                      <div className="text-lg md:text-xl font-bold text-green-900 wrap-break-word">
                         {formatCurrency(scenarioComparison.moderate.nominalCorpus)}
                       </div>
                       <div className="text-xs text-green-600 mt-0.5">
@@ -555,12 +617,12 @@ function App() {
                     
                     <div className="bg-white bg-opacity-70 rounded p-2 ring-2 ring-green-400">
                       <div className="text-xs text-green-700 mb-1">Monthly Pension</div>
-                      <div className="text-lg font-semibold text-green-900">
+                      <div className="text-base md:text-lg font-semibold text-green-900 wrap-break-word">
                         {formatCurrency(scenarioComparison.moderate.monthlyPension)}
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       <div>
                         <div className="text-green-600">Invested</div>
                         <div className="font-semibold text-green-800">
@@ -591,7 +653,7 @@ function App() {
 
               {/* Aggressive Scenario */}
               {scenarioComparison.aggressive && (
-                <div className="relative bg-linear-to-br from-orange-50 to-red-100 rounded-lg p-5 border-2 border-orange-400 hover:shadow-lg transition-shadow">
+                <div className="relative min-w-0 overflow-hidden bg-linear-to-br from-orange-50 to-red-100 rounded-lg p-5 pr-24 border-2 border-orange-400 hover:shadow-lg transition-shadow">
                   <div className="absolute top-3 right-3">
                     <span className="bg-red-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
                       High Risk
@@ -599,7 +661,7 @@ function App() {
                   </div>
                   <div className="mb-4">
                     <h3 className="text-lg font-bold text-orange-800 mb-1">Aggressive</h3>
-                    <div className="text-3xl font-bold text-orange-900">
+                    <div className="text-2xl md:text-3xl font-bold text-orange-900 wrap-break-word">
                       {scenarioComparison.aggressive.returnRate}%
                     </div>
                     <div className="text-xs text-orange-700 mt-1">Expected Return</div>
@@ -608,7 +670,7 @@ function App() {
                   <div className="space-y-3 border-t border-orange-300 pt-3">
                     <div>
                       <div className="text-xs text-orange-700 mb-1">Retirement Corpus</div>
-                      <div className="text-xl font-bold text-orange-900">
+                      <div className="text-lg md:text-xl font-bold text-orange-900 wrap-break-word">
                         {formatCurrency(scenarioComparison.aggressive.nominalCorpus)}
                       </div>
                       <div className="text-xs text-orange-600 mt-0.5">
@@ -618,12 +680,12 @@ function App() {
                     
                     <div className="bg-white bg-opacity-60 rounded p-2">
                       <div className="text-xs text-orange-700 mb-1">Monthly Pension</div>
-                      <div className="text-lg font-semibold text-orange-900">
+                      <div className="text-base md:text-lg font-semibold text-orange-900 wrap-break-word">
                         {formatCurrency(scenarioComparison.aggressive.monthlyPension)}
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       <div>
                         <div className="text-orange-600">Invested</div>
                         <div className="font-semibold text-orange-800">
@@ -670,14 +732,14 @@ function App() {
           </div>
 
           {/* Corpus Projection Chart - Full Width */}
-          <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+          <div className="mt-8 bg-white rounded-lg shadow-md p-6 h-full">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">
               Corpus Growth Projection
             </h2>
             <p className="text-sm text-gray-600 mb-6">
               Visual projection of your retirement corpus over time
             </p>
-            <div className="h-96">
+            <div className="h-88 md:h-96 overflow-hidden">
               {results.yearlyProjection && results.yearlyProjection.length > 0 && (
                 <Line
                   data={{
@@ -839,7 +901,7 @@ function App() {
                 />
               )}
             </div>
-            <div className="mt-4 flex items-center justify-center gap-6 text-xs text-gray-600">
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-600">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-0.5 bg-blue-500"></div>
                 <span>Nominal: Future value at retirement</span>
@@ -852,7 +914,7 @@ function App() {
           </div>
 
         {/* Two Column Layout - Inputs and Results */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8 items-start">
           
           {/* Left Column - Inputs */}
           <div className="space-y-6">
@@ -945,7 +1007,7 @@ function App() {
             </div>
 
             {/* Pension Gap Analyzer Card */}
-            <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="bg-white rounded-lg shadow-md p-6 min-w-0">
               <h2 className="text-xl font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
                 Pension Gap Analyzer
               </h2>
@@ -998,15 +1060,15 @@ function App() {
 
                       {/* Gap Details */}
                       <div className="space-y-2 mb-3">
-                        <div className="flex justify-between items-center bg-orange-50 p-2 rounded">
+                        <div className="flex justify-between items-start gap-2 bg-orange-50 p-2 rounded">
                           <span className="text-xs text-gray-700">Shortfall Amount:</span>
-                          <span className="text-sm font-bold text-red-600">
+                          <span className="text-sm font-bold text-red-600 text-right wrap-break-word max-w-[60%]">
                             {formatCurrency(pensionGap.gapAmount)}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center bg-orange-50 p-2 rounded">
+                        <div className="flex justify-between items-start gap-2 bg-orange-50 p-2 rounded">
                           <span className="text-xs text-gray-700">Gap Percentage:</span>
-                          <span className="text-sm font-bold text-red-600">
+                          <span className="text-sm font-bold text-red-600 text-right wrap-break-word max-w-[60%]">
                             {Math.abs(pensionGap.gapPercentage).toFixed(1)}%
                           </span>
                         </div>
@@ -1026,7 +1088,7 @@ function App() {
                             <div className="bg-blue-600 text-white text-center py-2 px-3 rounded font-bold">
                               {formatCurrency(pensionGap.suggestedContributionIncrease)}
                             </div>
-                            <div className="text-xs text-blue-600 mt-2">
+                            <div className="text-xs text-blue-600 mt-2 wrap-break-word">
                               New contribution: {formatCurrency(inputs.monthlyContribution + pensionGap.suggestedContributionIncrease)}
                             </div>
                           </div>
@@ -1077,7 +1139,7 @@ function App() {
                 {/* Nominal Corpus (Future Value) */}
                 <div className="bg-linear-to-r from-blue-50 to-blue-100 rounded-lg p-4">
                   <div className="text-sm text-gray-600 mb-1">Nominal Corpus (Future Value)</div>
-                  <div className="text-3xl font-bold text-blue-700">
+                  <div className="text-2xl md:text-3xl font-bold text-blue-700 wrap-break-word">
                     {formatCurrency(results.nominalCorpus || results.totalCorpus)}
                   </div>
                   <div className="text-xs text-gray-600 mt-2">
@@ -1087,13 +1149,13 @@ function App() {
 
                 {/* Inflation-Adjusted Corpus (Real Value) */}
                 <div className="bg-linear-to-r from-green-50 to-green-100 rounded-lg p-4 border-2 border-green-200">
-                  <div className="text-sm text-gray-600 mb-1 flex items-center justify-between">
+                  <div className="text-sm text-gray-600 mb-1 flex items-center justify-between gap-2">
                     <span>Real Value (Today's Money)</span>
                     <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
                       @ {inputs.inflationRate}% inflation
                     </span>
                   </div>
-                  <div className="text-3xl font-bold text-green-700">
+                  <div className="text-2xl md:text-3xl font-bold text-green-700 wrap-break-word">
                     {formatCurrency(results.inflationAdjustedCorpus || 0)}
                   </div>
                   <div className="text-xs text-gray-600 mt-2">
@@ -1101,21 +1163,21 @@ function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-gray-50 rounded-lg p-3">
                     <div className="text-xs text-gray-600 mb-1">Annuity Purchase (40%)</div>
-                    <div className="text-lg font-semibold text-gray-800">
+                    <div className="text-lg font-semibold text-gray-800 wrap-break-word">
                       {formatCurrency(results.annuityAmount)}
                     </div>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <div className="text-xs text-gray-600 mb-1">Lump Sum (60%)</div>
-                    <div className="text-lg font-semibold text-gray-800">
+                    <div className="text-lg font-semibold text-gray-800 wrap-break-word">
                       {formatCurrency(results.lumpSumAmount)}
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-200">
                   <div>
                     <div className="text-xs text-gray-500">Total Invested</div>
                     <div className="text-sm font-semibold text-green-600">
@@ -1133,40 +1195,40 @@ function App() {
             </div>
 
             {/* Pension Sustainability Card */}
-            <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="bg-white rounded-lg shadow-md p-6 min-w-0">
               <h2 className="text-xl font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
                 Pension Sustainability
               </h2>
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Monthly Pension</span>
-                  <span className="text-xl font-bold text-green-600">
+                <div className="flex justify-between items-start gap-3">
+                  <span className="text-sm text-gray-600 pr-2">Monthly Pension</span>
+                  <span className="text-xl font-bold text-green-600 text-right wrap-break-word max-w-[60%]">
                     {formatCurrency(results.monthlyPension)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Expected Expense</span>
-                  <span className="text-lg font-semibold text-gray-800">
+                <div className="flex justify-between items-start gap-3">
+                  <span className="text-sm text-gray-600 pr-2">Expected Expense</span>
+                  <span className="text-lg font-semibold text-gray-800 text-right wrap-break-word max-w-[60%]">
                     {formatCurrency(inputs.expectedMonthlyExpense)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-                  <span className="text-sm text-gray-600">Pension Coverage</span>
-                  <span className="text-lg font-semibold text-blue-600">
+                <div className="flex justify-between items-start gap-3 pt-2 border-t border-gray-200">
+                  <span className="text-sm text-gray-600 pr-2">Pension Coverage</span>
+                  <span className="text-lg font-semibold text-blue-600 text-right max-w-[60%]">
                     {inputs.expectedMonthlyExpense > 0 
                       ? Math.round((results.monthlyPension / inputs.expectedMonthlyExpense) * 100)
                       : 0}%
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Corpus Sustainability</span>
-                  <span className="text-lg font-semibold text-gray-800">
+                <div className="flex justify-between items-start gap-3">
+                  <span className="text-sm text-gray-600 pr-2">Corpus Sustainability</span>
+                  <span className="text-lg font-semibold text-gray-800 text-right max-w-[60%]">
                     {results.yearsOfSustainability} years
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Life Expectancy</span>
-                  <span className="text-lg font-semibold text-gray-800">{lifeExpectancy} years</span>
+                <div className="flex justify-between items-start gap-3">
+                  <span className="text-sm text-gray-600 pr-2">Life Expectancy</span>
+                  <span className="text-lg font-semibold text-gray-800 text-right max-w-[60%]">{lifeExpectancy} years</span>
                 </div>
                 <div className="mt-4 bg-gray-100 rounded-full h-3 overflow-hidden">
                   <div 
@@ -1178,106 +1240,6 @@ function App() {
                   Pension coverage: {results.sustainabilityScore}% of retirement span
                 </p>
               </div>
-            </div>
-
-            {/* Retirement Readiness Score Card */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
-                Retirement Readiness Score
-              </h2>
-              <div className="flex flex-col items-center justify-center py-6">
-                <div className="relative w-40 h-40">
-                  <svg className="transform -rotate-90 w-40 h-40">
-                    <circle
-                      cx="80"
-                      cy="80"
-                      r="70"
-                      stroke="#e5e7eb"
-                      strokeWidth="12"
-                      fill="transparent"
-                    />
-                    <circle
-                      cx="80"
-                      cy="80"
-                      r="70"
-                      stroke={results.readinessColor || '#3b82f6'}
-                      strokeWidth="12"
-                      fill="transparent"
-                      strokeDasharray={`${(results.readinessScore || 0) * 4.4} ${440 - (results.readinessScore || 0) * 4.4}`}
-                      strokeLinecap="round"
-                      className="transition-all duration-1000"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="text-4xl font-bold text-gray-800">{results.readinessScore || 0}</div>
-                      <div className="text-xs text-gray-500">out of 100</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 text-center">
-                  {/* Color-coded label badge */}
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <div 
-                      className="w-4 h-4 rounded-full" 
-                      style={{backgroundColor: results.readinessColor || '#9ca3af'}}
-                    ></div>
-                    <div className="text-lg font-bold" style={{color: results.readinessColor || '#6b7280'}}>
-                      {results.readinessLabel || 'N/A'} Zone
-                    </div>
-                  </div>
-                  <p className="text-sm font-semibold text-gray-700">
-                    {results.readinessStatus || 'Calculating...'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Scoring Breakdown */}
-              {results.scoringBreakdown && results.scoringBreakdown.length > 0 && (
-                <div className="mt-4 space-y-3 border-t border-gray-200 pt-4">
-                  <div className="text-sm font-semibold text-gray-700 mb-2">Score Breakdown:</div>
-                  {results.scoringBreakdown.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between text-xs">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-700">{item.factor}</div>
-                        <div className="text-gray-500">{item.value} • {item.status}</div>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-bold text-gray-800">{item.score}</span>
-                        <span className="text-gray-500">/{item.maxScore}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Color Legend */}
-              <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-gray-200">
-                <div className="text-center">
-                  <div className="text-xs text-gray-600 mb-1">Red</div>
-                  <div className="w-full h-2 bg-red-500 rounded"></div>
-                  <div className="text-xs text-gray-400 mt-1">0-50</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-gray-600 mb-1">Yellow</div>
-                  <div className="w-full h-2 bg-yellow-500 rounded"></div>
-                  <div className="text-xs text-gray-400 mt-1">50-75</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-gray-600 mb-1">Green</div>
-                  <div className="w-full h-2 bg-green-500 rounded"></div>
-                  <div className="text-xs text-gray-400 mt-1">75-100</div>
-                </div>
-              </div>
-
-              {/* Explanation Message */}
-              {results.readinessExplanation && (
-                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-xs text-gray-700 whitespace-pre-line">
-                    {results.readinessExplanation}
-                  </p>
-                </div>
-              )}
             </div>
 
           </div>
