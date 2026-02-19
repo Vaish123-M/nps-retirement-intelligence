@@ -21,6 +21,7 @@ function App() {
     currentCorpus: 0,
     annualStepUp: 5,
     inflationRate: 6,
+    lastMonthlySalary: 100000,
     expectedMonthlyExpense: 50000,
     targetCorpus: 10000000
   })
@@ -75,15 +76,16 @@ function App() {
       inflationRate: inputs.inflationRate
     })
 
-    // Step 4: Calculate retirement readiness score
+    // Step 4: Calculate retirement readiness score with enhanced metrics
+    const lifeExpectancyYears = (inputs.retirementAge + 25) - inputs.retirementAge;
     const readinessResult = calculateRetirementReadiness({
-      currentAge: inputs.currentAge,
-      retirementAge: inputs.retirementAge,
-      projectedCorpus: corpusResult.totalCorpus,
-      targetCorpus: inputs.targetCorpus,
       monthlyPension: withdrawalResult.monthlyPension,
-      expectedMonthlyExpense: inputs.expectedMonthlyExpense,
-      yearsOfSustainability: sustainabilityResult.yearsOfSustainability
+      lastMonthlySalary: inputs.lastMonthlySalary,
+      yearsSustainable: sustainabilityResult.yearsOfSustainability,
+      lifeExpectancyYears,
+      inflationAdjustedCorpus: corpusResult.inflationAdjustedCorpus,
+      targetCorpus: inputs.targetCorpus,
+      projectedCorpus: corpusResult.totalCorpus
     })
 
     // Update results state
@@ -98,8 +100,12 @@ function App() {
       monthlyPension: withdrawalResult.monthlyPension,
       yearsOfSustainability: sustainabilityResult.yearsOfSustainability,
       sustainabilityScore: sustainabilityResult.sustainabilityScore,
-      readinessScore: readinessResult.score,
-      readinessLevel: readinessResult.readinessLevel,
+      readinessScore: readinessResult.readinessScore,
+      readinessLabel: readinessResult.readinessLabel,
+      readinessColor: readinessResult.readinessColor,
+      readinessStatus: readinessResult.readinessStatus,
+      readinessExplanation: readinessResult.explanationMessage,
+      scoringBreakdown: readinessResult.scoringBreakdown,
       yearlyProjection: corpusResult.yearlyProjection
     })
   }
@@ -238,6 +244,20 @@ function App() {
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Expected annual inflation rate
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Monthly Salary (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={inputs.lastMonthlySalary}
+                    onChange={(e) => handleInputChange('lastMonthlySalary', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Salary before retirement (for replacement ratio)
                   </p>
                 </div>
               </div>
@@ -465,52 +485,84 @@ function App() {
                       cx="80"
                       cy="80"
                       r="70"
-                      stroke={results.readinessScore >= 75 ? '#10b981' : results.readinessScore >= 50 ? '#f59e0b' : '#ef4444'}
+                      stroke={results.readinessColor || '#3b82f6'}
                       strokeWidth="12"
                       fill="transparent"
-                      strokeDasharray={`${results.readinessScore * 4.4} ${440 - results.readinessScore * 4.4}`}
+                      strokeDasharray={`${(results.readinessScore || 0) * 4.4} ${440 - (results.readinessScore || 0) * 4.4}`}
                       strokeLinecap="round"
                       className="transition-all duration-1000"
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center">
-                      <div className="text-4xl font-bold text-gray-800">{results.readinessScore}</div>
+                      <div className="text-4xl font-bold text-gray-800">{results.readinessScore || 0}</div>
                       <div className="text-xs text-gray-500">out of 100</div>
                     </div>
                   </div>
                 </div>
                 <div className="mt-4 text-center">
-                  <div className={`text-lg font-semibold mb-1 ${
-                    results.readinessLevel === 'Excellent' ? 'text-green-600' :
-                    results.readinessLevel === 'Good' ? 'text-yellow-600' :
-                    results.readinessLevel === 'Fair' ? 'text-orange-600' :
-                    'text-red-600'
-                  }`}>
-                    {results.readinessLevel}
+                  {/* Color-coded label badge */}
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <div 
+                      className="w-4 h-4 rounded-full" 
+                      style={{backgroundColor: results.readinessColor || '#9ca3af'}}
+                    ></div>
+                    <div className="text-lg font-bold" style={{color: results.readinessColor || '#6b7280'}}>
+                      {results.readinessLabel || 'N/A'} Zone
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600">
-                    Your retirement plan readiness
+                  <p className="text-sm font-semibold text-gray-700">
+                    {results.readinessStatus || 'Calculating...'}
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 mt-4">
+
+              {/* Scoring Breakdown */}
+              {results.scoringBreakdown && results.scoringBreakdown.length > 0 && (
+                <div className="mt-4 space-y-3 border-t border-gray-200 pt-4">
+                  <div className="text-sm font-semibold text-gray-700 mb-2">Score Breakdown:</div>
+                  {results.scoringBreakdown.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between text-xs">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-700">{item.factor}</div>
+                        <div className="text-gray-500">{item.value} • {item.status}</div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-gray-800">{item.score}</span>
+                        <span className="text-gray-500">/{item.maxScore}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Color Legend */}
+              <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-gray-200">
                 <div className="text-center">
-                  <div className="text-xs text-gray-500">Poor</div>
-                  <div className="w-full h-2 bg-red-400 rounded"></div>
-                  <div className="text-xs text-gray-400 mt-1">0-30</div>
+                  <div className="text-xs text-gray-600 mb-1">Red</div>
+                  <div className="w-full h-2 bg-red-500 rounded"></div>
+                  <div className="text-xs text-gray-400 mt-1">0-50</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-xs text-gray-500">Good</div>
-                  <div className="w-full h-2 bg-yellow-400 rounded"></div>
-                  <div className="text-xs text-gray-400 mt-1">30-75</div>
+                  <div className="text-xs text-gray-600 mb-1">Yellow</div>
+                  <div className="w-full h-2 bg-yellow-500 rounded"></div>
+                  <div className="text-xs text-gray-400 mt-1">50-75</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-xs text-gray-500">Excellent</div>
+                  <div className="text-xs text-gray-600 mb-1">Green</div>
                   <div className="w-full h-2 bg-green-500 rounded"></div>
                   <div className="text-xs text-gray-400 mt-1">75-100</div>
                 </div>
               </div>
+
+              {/* Explanation Message */}
+              {results.readinessExplanation && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xs text-gray-700 whitespace-pre-line">
+                    {results.readinessExplanation}
+                  </p>
+                </div>
+              )}
             </div>
 
           </div>

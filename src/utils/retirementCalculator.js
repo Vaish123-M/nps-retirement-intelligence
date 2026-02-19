@@ -444,84 +444,260 @@ export function calculateRequiredContribution({
 }
 
 /**
- * Calculate retirement readiness score
- * Evaluates overall retirement preparedness on a scale of 0-100
+ * Calculate Retirement Readiness Score
+ * Comprehensive scoring system evaluating retirement preparedness
+ * Based on replacement ratio, sustainability, and inflation-adjusted adequacy
  * 
- * @param {Object} params - Various retirement parameters
- * @returns {Object} - Readiness score and breakdown
+ * @param {Object} params - Retirement parameters
+ * @param {number} params.monthlyPension - Expected monthly pension amount
+ * @param {number} params.lastMonthlySalary - Last monthly salary before retirement
+ * @param {number} params.yearsSustainable - Years the corpus will sustain
+ * @param {number} params.lifeExpectancyYears - Expected years post-retirement
+ * @param {number} params.inflationAdjustedCorpus - Real value of corpus in today's money
+ * @param {number} params.targetCorpus - Target corpus goal
+ * @param {number} params.projectedCorpus - Projected corpus at retirement
+ * 
+ * @returns {Object} - Readiness score, label, and detailed explanation
  */
 export function calculateRetirementReadiness({
-  currentAge,
-  retirementAge,
-  projectedCorpus,
-  targetCorpus,
-  monthlyPension,
-  expectedMonthlyExpense,
-  yearsOfSustainability
+  monthlyPension = 0,
+  lastMonthlySalary = 0,
+  yearsSustainable = 0,
+  lifeExpectancyYears = 25,
+  inflationAdjustedCorpus = 0,
+  targetCorpus = 0,
+  projectedCorpus = 0
 }) {
-  let score = 0;
-  const factors = [];
+  let totalScore = 0;
+  const scoringBreakdown = [];
+  const issues = [];
+  const recommendations = [];
 
-  // Factor 1: Corpus Achievement (40 points)
-  if (targetCorpus > 0) {
-    const corpusRatio = Math.min(projectedCorpus / targetCorpus, 1);
-    const corpusScore = corpusRatio * 40;
-    score += corpusScore;
-    factors.push({
-      name: 'Corpus Achievement',
-      score: Math.round(corpusScore),
-      maxScore: 40
-    });
-  }
-
-  // Factor 2: Pension Coverage (30 points)
-  if (expectedMonthlyExpense > 0 && monthlyPension > 0) {
-    const pensionCoverage = Math.min(monthlyPension / expectedMonthlyExpense, 1);
-    const pensionScore = pensionCoverage * 30;
-    score += pensionScore;
-    factors.push({
-      name: 'Pension Coverage',
-      score: Math.round(pensionScore),
-      maxScore: 30
-    });
-  }
-
-  // Factor 3: Time to Retirement (15 points)
-  const yearsToRetirement = retirementAge - currentAge;
-  let timeScore = 0;
-  if (yearsToRetirement >= 20) timeScore = 15;
-  else if (yearsToRetirement >= 15) timeScore = 12;
-  else if (yearsToRetirement >= 10) timeScore = 9;
-  else if (yearsToRetirement >= 5) timeScore = 6;
-  else timeScore = 3;
+  // ============================================================
+  // FACTOR 1: Replacement Ratio (35 points)
+  // Measures if pension can replace pre-retirement income adequately
+  // ============================================================
+  let replacementScore = 0;
+  let replacementRatio = 0;
   
-  score += timeScore;
-  factors.push({
-    name: 'Time to Retirement',
-    score: timeScore,
-    maxScore: 15
-  });
+  if (lastMonthlySalary > 0 && monthlyPension > 0) {
+    replacementRatio = (monthlyPension / lastMonthlySalary) * 100;
+    
+    // Scoring logic:
+    // 70%+ replacement = Excellent (35 points)
+    // 50-70% replacement = Good (25-35 points)
+    // 30-50% replacement = Moderate (15-25 points)
+    // <30% replacement = Poor (<15 points)
+    
+    if (replacementRatio >= 70) {
+      replacementScore = 35;
+    } else if (replacementRatio >= 50) {
+      replacementScore = 25 + ((replacementRatio - 50) / 20) * 10;
+    } else if (replacementRatio >= 30) {
+      replacementScore = 15 + ((replacementRatio - 30) / 20) * 10;
+    } else {
+      replacementScore = (replacementRatio / 30) * 15;
+    }
+    
+    totalScore += replacementScore;
+    scoringBreakdown.push({
+      factor: 'Income Replacement Ratio',
+      score: Math.round(replacementScore),
+      maxScore: 35,
+      value: `${Math.round(replacementRatio)}%`,
+      status: replacementRatio >= 70 ? 'Excellent' : replacementRatio >= 50 ? 'Good' : replacementRatio >= 30 ? 'Moderate' : 'Poor'
+    });
+    
+    // Provide feedback
+    if (replacementRatio < 50) {
+      issues.push(`Income replacement ratio is only ${Math.round(replacementRatio)}% (target: 70%+)`);
+      recommendations.push('Increase monthly contributions or reduce post-retirement expenses');
+    }
+  } else {
+    scoringBreakdown.push({
+      factor: 'Income Replacement Ratio',
+      score: 0,
+      maxScore: 35,
+      value: 'N/A',
+      status: 'No Data'
+    });
+    issues.push('Last monthly salary not provided for replacement ratio calculation');
+  }
 
-  // Factor 4: Sustainability (15 points)
-  if (yearsOfSustainability) {
-    const sustainScore = Math.min((yearsOfSustainability / 30) * 15, 15);
-    score += sustainScore;
-    factors.push({
-      name: 'Sustainability',
-      score: Math.round(sustainScore),
-      maxScore: 15
+  // ============================================================
+  // FACTOR 2: Sustainability vs Life Expectancy (35 points)
+  // Measures if corpus can last through expected retirement years
+  // ============================================================
+  let sustainabilityScore = 0;
+  let sustainabilityRatio = 0;
+  
+  if (lifeExpectancyYears > 0 && yearsSustainable > 0) {
+    sustainabilityRatio = (yearsSustainable / lifeExpectancyYears) * 100;
+    
+    // Scoring logic:
+    // 100%+ coverage = Excellent (35 points)
+    // 80-100% coverage = Good (28-35 points)
+    // 60-80% coverage = Moderate (21-28 points)
+    // <60% coverage = Poor (<21 points)
+    
+    if (sustainabilityRatio >= 100) {
+      sustainabilityScore = 35;
+    } else if (sustainabilityRatio >= 80) {
+      sustainabilityScore = 28 + ((sustainabilityRatio - 80) / 20) * 7;
+    } else if (sustainabilityRatio >= 60) {
+      sustainabilityScore = 21 + ((sustainabilityRatio - 60) / 20) * 7;
+    } else {
+      sustainabilityScore = (sustainabilityRatio / 60) * 21;
+    }
+    
+    totalScore += sustainabilityScore;
+    scoringBreakdown.push({
+      factor: 'Corpus Sustainability',
+      score: Math.round(sustainabilityScore),
+      maxScore: 35,
+      value: `${yearsSustainable} of ${lifeExpectancyYears} years`,
+      status: sustainabilityRatio >= 100 ? 'Excellent' : sustainabilityRatio >= 80 ? 'Good' : sustainabilityRatio >= 60 ? 'Moderate' : 'Poor'
+    });
+    
+    // Provide feedback
+    if (sustainabilityRatio < 100) {
+      const shortfall = lifeExpectancyYears - yearsSustainable;
+      issues.push(`Corpus may deplete ${shortfall} years before life expectancy`);
+      recommendations.push('Increase retirement savings or reduce expected monthly expenses');
+    }
+  } else {
+    scoringBreakdown.push({
+      factor: 'Corpus Sustainability',
+      score: 0,
+      maxScore: 35,
+      value: 'N/A',
+      status: 'No Data'
     });
   }
 
-  // Determine readiness level
-  let readinessLevel = 'Poor';
-  if (score >= 75) readinessLevel = 'Excellent';
-  else if (score >= 50) readinessLevel = 'Good';
-  else if (score >= 30) readinessLevel = 'Fair';
+  // ============================================================
+  // FACTOR 3: Inflation-Adjusted Adequacy (30 points)
+  // Measures if real corpus value meets retirement goals
+  // ============================================================
+  let adequacyScore = 0;
+  let adequacyRatio = 0;
+  
+  if (targetCorpus > 0 && inflationAdjustedCorpus > 0) {
+    adequacyRatio = (inflationAdjustedCorpus / targetCorpus) * 100;
+    
+    // Scoring logic based on real purchasing power:
+    // 100%+ of target = Excellent (30 points)
+    // 75-100% of target = Good (22-30 points)
+    // 50-75% of target = Moderate (15-22 points)
+    // <50% of target = Poor (<15 points)
+    
+    if (adequacyRatio >= 100) {
+      adequacyScore = 30;
+    } else if (adequacyRatio >= 75) {
+      adequacyScore = 22 + ((adequacyRatio - 75) / 25) * 8;
+    } else if (adequacyRatio >= 50) {
+      adequacyScore = 15 + ((adequacyRatio - 50) / 25) * 7;
+    } else {
+      adequacyScore = (adequacyRatio / 50) * 15;
+    }
+    
+    totalScore += adequacyScore;
+    scoringBreakdown.push({
+      factor: 'Inflation-Adjusted Adequacy',
+      score: Math.round(adequacyScore),
+      maxScore: 30,
+      value: `${Math.round(adequacyRatio)}%`,
+      status: adequacyRatio >= 100 ? 'Excellent' : adequacyRatio >= 75 ? 'Good' : adequacyRatio >= 50 ? 'Moderate' : 'Poor'
+    });
+    
+    // Provide feedback
+    if (adequacyRatio < 100) {
+      issues.push(`Real corpus value is ${Math.round(adequacyRatio)}% of target (considering inflation)`);
+      recommendations.push('Increase contributions or investment returns to combat inflation');
+    }
+  } else if (projectedCorpus > 0 && targetCorpus > 0) {
+    // Fallback to nominal corpus if inflation-adjusted not available
+    adequacyRatio = (projectedCorpus / targetCorpus) * 100;
+    adequacyScore = Math.min((adequacyRatio / 100) * 30, 30);
+    
+    totalScore += adequacyScore;
+    scoringBreakdown.push({
+      factor: 'Corpus Adequacy (Nominal)',
+      score: Math.round(adequacyScore),
+      maxScore: 30,
+      value: `${Math.round(adequacyRatio)}%`,
+      status: adequacyRatio >= 100 ? 'Excellent' : adequacyRatio >= 75 ? 'Good' : 'Moderate'
+    });
+  } else {
+    scoringBreakdown.push({
+      factor: 'Inflation-Adjusted Adequacy',
+      score: 0,
+      maxScore: 30,
+      value: 'N/A',
+      status: 'No Data'
+    });
+  }
+
+  // ============================================================
+  // FINAL SCORE CALCULATION AND LABELING
+  // ============================================================
+  const finalScore = Math.round(totalScore);
+  
+  // Determine readiness label with color coding
+  let readinessLabel;
+  let readinessColor;
+  let readinessStatus;
+  
+  if (finalScore >= 75) {
+    readinessLabel = 'Green';
+    readinessColor = '#10b981'; // Green
+    readinessStatus = 'Excellent';
+  } else if (finalScore >= 50) {
+    readinessLabel = 'Yellow';
+    readinessColor = '#f59e0b'; // Amber/Yellow
+    readinessStatus = 'Moderate';
+  } else {
+    readinessLabel = 'Red';
+    readinessColor = '#ef4444'; // Red
+    readinessStatus = 'Needs Improvement';
+  }
+
+  // Generate explanation message
+  let explanationMessage = '';
+  
+  if (finalScore >= 75) {
+    explanationMessage = 'Excellent retirement readiness! You are well-prepared with adequate income replacement, sustainable corpus, and inflation-protected savings. Continue monitoring and adjusting your plan as needed.';
+  } else if (finalScore >= 50) {
+    explanationMessage = 'Moderate retirement readiness. You have a reasonable foundation, but there are areas that need attention. Consider increasing savings or adjusting retirement expectations to improve your score.';
+  } else {
+    explanationMessage = 'Your retirement plan needs significant improvement. Current projections show gaps in income replacement, corpus sustainability, or inflation protection. Take action now to strengthen your retirement security.';
+  }
+
+  // Add specific guidance if there are issues
+  if (issues.length > 0) {
+    explanationMessage += '\n\nKey concerns:\n• ' + issues.join('\n• ');
+  }
+  
+  if (recommendations.length > 0) {
+    explanationMessage += '\n\nRecommended actions:\n• ' + recommendations.join('\n• ');
+  }
 
   return {
-    score: Math.round(score),
-    readinessLevel,
-    factors
+    // Primary metrics
+    readinessScore: finalScore,
+    readinessLabel,
+    readinessColor,
+    readinessStatus,
+    
+    // Detailed breakdown
+    scoringBreakdown,
+    replacementRatio: Math.round(replacementRatio),
+    sustainabilityRatio: Math.round(sustainabilityRatio),
+    adequacyRatio: Math.round(adequacyRatio),
+    
+    // Guidance
+    explanationMessage,
+    issues,
+    recommendations
   };
 }
