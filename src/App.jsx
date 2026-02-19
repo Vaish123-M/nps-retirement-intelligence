@@ -43,6 +43,13 @@ function App() {
   // Reverse planning results state
   const [reversePlanResults, setReversePlanResults] = useState(null)
 
+  // Scenario comparison results state
+  const [scenarioComparison, setScenarioComparison] = useState({
+    conservative: null,
+    moderate: null,
+    aggressive: null
+  })
+
   // Scenario return rates
   const scenarioRates = {
     conservative: 8,
@@ -53,6 +60,7 @@ function App() {
   // Calculate results whenever inputs or scenario changes
   useEffect(() => {
     calculateResults()
+    calculateAllScenariosComparison()
   }, [inputs, scenario])
 
   const calculateResults = () => {
@@ -112,6 +120,43 @@ function App() {
       scoringBreakdown: readinessResult.scoringBreakdown,
       yearlyProjection: corpusResult.yearlyProjection
     })
+  }
+
+  const calculateAllScenariosComparison = () => {
+    const scenarios = ['conservative', 'moderate', 'aggressive']
+    const comparisonResults = {}
+
+    scenarios.forEach(scenarioName => {
+      const expectedAnnualReturn = scenarioRates[scenarioName]
+
+      // Calculate corpus for this scenario
+      const corpusResult = calculateRetirementCorpus({
+        currentAge: inputs.currentAge,
+        retirementAge: inputs.retirementAge,
+        monthlyContribution: inputs.monthlyContribution,
+        expectedAnnualReturn,
+        annualStepUp: inputs.annualStepUp,
+        currentCorpus: inputs.currentCorpus,
+        inflationRate: inputs.inflationRate
+      })
+
+      // Calculate NPS withdrawal
+      const withdrawalResult = calculateNPSWithdrawal(corpusResult.totalCorpus)
+
+      // Store the results
+      comparisonResults[scenarioName] = {
+        returnRate: expectedAnnualReturn,
+        nominalCorpus: corpusResult.totalCorpus,
+        inflationAdjustedCorpus: corpusResult.inflationAdjustedCorpus,
+        totalContributions: corpusResult.totalContributions,
+        totalReturns: corpusResult.totalReturns,
+        monthlyPension: withdrawalResult.monthlyPension,
+        annuityAmount: withdrawalResult.annuityAmount,
+        lumpSumAmount: withdrawalResult.lumpSumAmount
+      }
+    })
+
+    setScenarioComparison(comparisonResults)
   }
 
   const handleInputChange = (field, value) => {
@@ -335,6 +380,227 @@ function App() {
                 Expected annual return rate based on investment strategy
               </p>
             </div>
+
+          </div>
+
+          {/* Scenario Comparison Section - Full Width */}
+          <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              Scenario Comparison
+            </h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Compare retirement outcomes across different risk-return profiles
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Conservative Scenario */}
+              {scenarioComparison.conservative && (
+                <div className="relative bg-linear-to-br from-blue-50 to-blue-100 rounded-lg p-5 border-2 border-blue-300 hover:shadow-lg transition-shadow">
+                  <div className="absolute top-3 right-3">
+                    <span className="bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
+                      Low Risk
+                    </span>
+                  </div>
+                  <div className="mb-4">
+                    <h3 className="text-lg font-bold text-blue-800 mb-1">Conservative</h3>
+                    <div className="text-3xl font-bold text-blue-900">
+                      {scenarioComparison.conservative.returnRate}%
+                    </div>
+                    <div className="text-xs text-blue-700 mt-1">Expected Return</div>
+                  </div>
+                  
+                  <div className="space-y-3 border-t border-blue-300 pt-3">
+                    <div>
+                      <div className="text-xs text-blue-700 mb-1">Retirement Corpus</div>
+                      <div className="text-xl font-bold text-blue-900">
+                        {formatCurrency(scenarioComparison.conservative.nominalCorpus)}
+                      </div>
+                      <div className="text-xs text-blue-600 mt-0.5">
+                        Real: {formatCurrency(scenarioComparison.conservative.inflationAdjustedCorpus)}
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white bg-opacity-60 rounded p-2">
+                      <div className="text-xs text-blue-700 mb-1">Monthly Pension</div>
+                      <div className="text-lg font-semibold text-blue-900">
+                        {formatCurrency(scenarioComparison.conservative.monthlyPension)}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-blue-600">Invested</div>
+                        <div className="font-semibold text-blue-800">
+                          {formatCurrency(scenarioComparison.conservative.totalContributions)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-blue-600">Returns</div>
+                        <div className="font-semibold text-green-700">
+                          {formatCurrency(scenarioComparison.conservative.totalReturns)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 pt-3 border-t border-blue-300">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-blue-700">Risk Level</span>
+                      <div className="flex gap-1">
+                        <div className="w-6 h-2 bg-blue-600 rounded"></div>
+                        <div className="w-6 h-2 bg-gray-300 rounded"></div>
+                        <div className="w-6 h-2 bg-gray-300 rounded"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Moderate Scenario */}
+              {scenarioComparison.moderate && (
+                <div className="relative bg-linear-to-br from-green-50 to-green-100 rounded-lg p-5 border-2 border-green-400 hover:shadow-xl transition-all transform hover:scale-105">
+                  <div className="absolute top-3 right-3">
+                    <span className="bg-green-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
+                      Balanced
+                    </span>
+                  </div>
+                  <div className="mb-4">
+                    <h3 className="text-lg font-bold text-green-800 mb-1">Moderate</h3>
+                    <div className="text-3xl font-bold text-green-900">
+                      {scenarioComparison.moderate.returnRate}%
+                    </div>
+                    <div className="text-xs text-green-700 mt-1">Expected Return</div>
+                  </div>
+                  
+                  <div className="space-y-3 border-t border-green-300 pt-3">
+                    <div>
+                      <div className="text-xs text-green-700 mb-1">Retirement Corpus</div>
+                      <div className="text-xl font-bold text-green-900">
+                        {formatCurrency(scenarioComparison.moderate.nominalCorpus)}
+                      </div>
+                      <div className="text-xs text-green-600 mt-0.5">
+                        Real: {formatCurrency(scenarioComparison.moderate.inflationAdjustedCorpus)}
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white bg-opacity-70 rounded p-2 ring-2 ring-green-400">
+                      <div className="text-xs text-green-700 mb-1">Monthly Pension</div>
+                      <div className="text-lg font-semibold text-green-900">
+                        {formatCurrency(scenarioComparison.moderate.monthlyPension)}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-green-600">Invested</div>
+                        <div className="font-semibold text-green-800">
+                          {formatCurrency(scenarioComparison.moderate.totalContributions)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-green-600">Returns</div>
+                        <div className="font-semibold text-green-700">
+                          {formatCurrency(scenarioComparison.moderate.totalReturns)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 pt-3 border-t border-green-300">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-green-700 font-semibold">Risk Level</span>
+                      <div className="flex gap-1">
+                        <div className="w-6 h-2 bg-green-600 rounded"></div>
+                        <div className="w-6 h-2 bg-green-600 rounded"></div>
+                        <div className="w-6 h-2 bg-gray-300 rounded"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Aggressive Scenario */}
+              {scenarioComparison.aggressive && (
+                <div className="relative bg-linear-to-br from-orange-50 to-red-100 rounded-lg p-5 border-2 border-orange-400 hover:shadow-lg transition-shadow">
+                  <div className="absolute top-3 right-3">
+                    <span className="bg-red-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
+                      High Risk
+                    </span>
+                  </div>
+                  <div className="mb-4">
+                    <h3 className="text-lg font-bold text-orange-800 mb-1">Aggressive</h3>
+                    <div className="text-3xl font-bold text-orange-900">
+                      {scenarioComparison.aggressive.returnRate}%
+                    </div>
+                    <div className="text-xs text-orange-700 mt-1">Expected Return</div>
+                  </div>
+                  
+                  <div className="space-y-3 border-t border-orange-300 pt-3">
+                    <div>
+                      <div className="text-xs text-orange-700 mb-1">Retirement Corpus</div>
+                      <div className="text-xl font-bold text-orange-900">
+                        {formatCurrency(scenarioComparison.aggressive.nominalCorpus)}
+                      </div>
+                      <div className="text-xs text-orange-600 mt-0.5">
+                        Real: {formatCurrency(scenarioComparison.aggressive.inflationAdjustedCorpus)}
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white bg-opacity-60 rounded p-2">
+                      <div className="text-xs text-orange-700 mb-1">Monthly Pension</div>
+                      <div className="text-lg font-semibold text-orange-900">
+                        {formatCurrency(scenarioComparison.aggressive.monthlyPension)}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-orange-600">Invested</div>
+                        <div className="font-semibold text-orange-800">
+                          {formatCurrency(scenarioComparison.aggressive.totalContributions)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-orange-600">Returns</div>
+                        <div className="font-semibold text-green-700">
+                          {formatCurrency(scenarioComparison.aggressive.totalReturns)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 pt-3 border-t border-orange-300">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-orange-700">Risk Level</span>
+                      <div className="flex gap-1">
+                        <div className="w-6 h-2 bg-red-600 rounded"></div>
+                        <div className="w-6 h-2 bg-red-600 rounded"></div>
+                        <div className="w-6 h-2 bg-red-600 rounded"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Risk-Return Tradeoff Message */}
+            <div className="mt-6 bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">⚖️</div>
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-1">Risk-Return Tradeoff</h4>
+                  <p className="text-sm text-gray-600">
+                    Higher returns come with higher risk. Conservative investments offer stability with lower growth,
+                    while aggressive strategies may yield higher corpus but with greater market volatility.
+                    The moderate approach balances growth potential with manageable risk.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Left Column - Inputs */}
+          <div className="space-y-6">
 
             {/* Goal-Based Reverse Planner Card */}
             <div className="bg-white rounded-lg shadow-md p-6">
