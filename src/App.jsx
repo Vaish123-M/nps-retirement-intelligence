@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+import { Line } from 'react-chartjs-2'
+import {
   calculateRetirementCorpus,
   calculateNPSWithdrawal,
   calculatePensionSustainability,
@@ -9,6 +21,18 @@ import {
   calculateRetirementReadiness,
   calculateReverseRetirementPlan
 } from './utils/retirementCalculator'
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
 
 function App() {
   // Scenario selection state
@@ -50,6 +74,16 @@ function App() {
     aggressive: null
   })
 
+  // Pension gap analyzer state
+  const [pensionGap, setPensionGap] = useState({
+    desiredPension: 50000,
+    estimatedPension: 0,
+    gapAmount: 0,
+    gapPercentage: 0,
+    hasGap: false,
+    suggestedContributionIncrease: 0
+  })
+
   // Scenario return rates
   const scenarioRates = {
     conservative: 8,
@@ -61,7 +95,8 @@ function App() {
   useEffect(() => {
     calculateResults()
     calculateAllScenariosComparison()
-  }, [inputs, scenario])
+    calculatePensionGap()
+  }, [inputs, scenario, results.monthlyPension])
 
   const calculateResults = () => {
     const expectedAnnualReturn = scenarioRates[scenario]
@@ -157,6 +192,40 @@ function App() {
     })
 
     setScenarioComparison(comparisonResults)
+  }
+
+  const calculatePensionGap = () => {
+    const desired = pensionGap.desiredPension
+    const estimated = results.monthlyPension
+    const gap = desired - estimated
+    const gapPercent = desired > 0 ? (gap / desired) * 100 : 0
+    const hasGap = gap > 0
+
+    // Calculate suggested contribution increase (rough estimate)
+    // If there's a gap, estimate how much more contribution is needed
+    let suggestedIncrease = 0
+    if (hasGap && gap > 0) {
+      // Simple approximation: increase contribution proportionally to gap
+      const currentContribution = inputs.monthlyContribution
+      const gapRatio = gap / (estimated > 0 ? estimated : 1)
+      suggestedIncrease = Math.round(currentContribution * gapRatio * 0.5) // 50% of proportional increase as estimate
+    }
+
+    setPensionGap({
+      desiredPension: desired,
+      estimatedPension: estimated,
+      gapAmount: gap,
+      gapPercentage: gapPercent,
+      hasGap: hasGap,
+      suggestedContributionIncrease: suggestedIncrease
+    })
+  }
+
+  const handlePensionGapInputChange = (value) => {
+    setPensionGap(prev => ({
+      ...prev,
+      desiredPension: parseFloat(value) || 0
+    }))
   }
 
   const handleInputChange = (field, value) => {
@@ -689,6 +758,125 @@ function App() {
               </div>
             </div>
 
+            {/* Pension Gap Analyzer Card */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
+                Pension Gap Analyzer
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Desired Monthly Pension (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={pensionGap.desiredPension}
+                    onChange={(e) => handlePensionGapInputChange(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Your target monthly income after retirement
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-600 mb-1">Estimated Monthly Pension</div>
+                  <div className="text-xl font-semibold text-gray-800">
+                    {formatCurrency(pensionGap.estimatedPension)}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Based on current plan
+                  </div>
+                </div>
+
+                {/* Gap Analysis Results */}
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <div className="text-sm font-semibold text-gray-700 mb-3">Gap Analysis:</div>
+                  
+                  {pensionGap.hasGap ? (
+                    <>
+                      {/* Alert Message */}
+                      <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-3">
+                        <div className="flex items-start">
+                          <div className="text-red-500 mr-2 text-xl">⚠️</div>
+                          <div>
+                            <div className="text-sm font-semibold text-red-800 mb-1">
+                              Pension Gap Detected!
+                            </div>
+                            <div className="text-xs text-red-700">
+                              Your current plan may not meet your retirement income goals.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Gap Details */}
+                      <div className="space-y-2 mb-3">
+                        <div className="flex justify-between items-center bg-orange-50 p-2 rounded">
+                          <span className="text-xs text-gray-700">Shortfall Amount:</span>
+                          <span className="text-sm font-bold text-red-600">
+                            {formatCurrency(pensionGap.gapAmount)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center bg-orange-50 p-2 rounded">
+                          <span className="text-xs text-gray-700">Gap Percentage:</span>
+                          <span className="text-sm font-bold text-red-600">
+                            {Math.abs(pensionGap.gapPercentage).toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Suggestion Box */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <div className="flex items-start">
+                          <div className="text-blue-600 mr-2 text-lg">💡</div>
+                          <div>
+                            <div className="text-xs font-semibold text-blue-800 mb-1">
+                              Suggested Action:
+                            </div>
+                            <div className="text-xs text-blue-700 mb-2">
+                              To bridge this gap, consider increasing your monthly contribution by approximately:
+                            </div>
+                            <div className="bg-blue-600 text-white text-center py-2 px-3 rounded font-bold">
+                              {formatCurrency(pensionGap.suggestedContributionIncrease)}
+                            </div>
+                            <div className="text-xs text-blue-600 mt-2">
+                              New contribution: {formatCurrency(inputs.monthlyContribution + pensionGap.suggestedContributionIncrease)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="bg-green-50 border-l-4 border-green-500 p-3">
+                      <div className="flex items-start">
+                        <div className="text-green-500 mr-2 text-xl">✓</div>
+                        <div>
+                          <div className="text-sm font-semibold text-green-800 mb-1">
+                            On Track!
+                          </div>
+                          <div className="text-xs text-green-700">
+                            {pensionGap.estimatedPension >= pensionGap.desiredPension ? (
+                              <>
+                                Your estimated pension <span className="font-semibold">{formatCurrency(pensionGap.estimatedPension)}</span> meets or exceeds your desired pension goal.
+                                {pensionGap.gapAmount < 0 && (
+                                  <div className="mt-1">
+                                    Surplus: <span className="font-semibold text-green-800">{formatCurrency(Math.abs(pensionGap.gapAmount))}</span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              'Your retirement plan is aligned with your goals.'
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
           </div>
 
           {/* Right Column: Results Dashboard */}
@@ -904,6 +1092,185 @@ function App() {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Corpus Projection Chart */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
+                Corpus Growth Projection
+              </h2>
+              <div className="h-80">
+                {results.yearlyProjection && results.yearlyProjection.length > 0 && (
+                  <Line
+                    data={{
+                      labels: results.yearlyProjection.map(item => item.age),
+                      datasets: [
+                        {
+                          label: 'Nominal Corpus (Future Value)',
+                          data: results.yearlyProjection.map(item => item.corpusAfterReturn),
+                          borderColor: 'rgb(59, 130, 246)',
+                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                          borderWidth: 3,
+                          fill: true,
+                          tension: 0.4,
+                          pointRadius: 0,
+                          pointHoverRadius: 6,
+                          pointHoverBackgroundColor: 'rgb(59, 130, 246)',
+                          pointHoverBorderColor: 'white',
+                          pointHoverBorderWidth: 2,
+                        },
+                        {
+                          label: 'Inflation-Adjusted Corpus (Real Value)',
+                          data: results.yearlyProjection.map((item, index) => {
+                            const yearsFromNow = index
+                            const inflationRate = inputs.inflationRate / 100
+                            return item.corpusAfterReturn / Math.pow(1 + inflationRate, yearsFromNow)
+                          }),
+                          borderColor: 'rgb(34, 197, 94)',
+                          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                          borderWidth: 3,
+                          fill: true,
+                          tension: 0.4,
+                          pointRadius: 0,
+                          pointHoverRadius: 6,
+                          pointHoverBackgroundColor: 'rgb(34, 197, 94)',
+                          pointHoverBorderColor: 'white',
+                          pointHoverBorderWidth: 2,
+                        }
+                      ]
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      interaction: {
+                        mode: 'index',
+                        intersect: false,
+                      },
+                      plugins: {
+                        legend: {
+                          position: 'top',
+                          labels: {
+                            usePointStyle: true,
+                            padding: 15,
+                            font: {
+                              size: 12,
+                              weight: '500'
+                            }
+                          }
+                        },
+                        tooltip: {
+                          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                          titleColor: 'white',
+                          bodyColor: 'white',
+                          titleFont: {
+                            size: 13,
+                            weight: 'bold'
+                          },
+                          bodyFont: {
+                            size: 12
+                          },
+                          padding: 12,
+                          displayColors: true,
+                          callbacks: {
+                            title: function(context) {
+                              return `Age: ${context[0].label} years`
+                            },
+                            label: function(context) {
+                              let label = context.dataset.label || ''
+                              if (label) {
+                                label += ': '
+                              }
+                              const value = context.parsed.y
+                              label += new Intl.NumberFormat('en-IN', {
+                                style: 'currency',
+                                currency: 'INR',
+                                maximumFractionDigits: 0
+                              }).format(value)
+                              return label
+                            },
+                            afterBody: function(context) {
+                              const dataIndex = context[0].dataIndex
+                              const projection = results.yearlyProjection[dataIndex]
+                              if (projection) {
+                                return [
+                                  '',
+                                  `Year: ${projection.yearNumber}`,
+                                  `Contributions: ${new Intl.NumberFormat('en-IN', {
+                                    style: 'currency',
+                                    currency: 'INR',
+                                    maximumFractionDigits: 0
+                                  }).format(projection.cumulativeContributions)}`
+                                ]
+                              }
+                              return []
+                            }
+                          }
+                        }
+                      },
+                      scales: {
+                        x: {
+                          title: {
+                            display: true,
+                            text: 'Age (Years)',
+                            font: {
+                              size: 13,
+                              weight: '600'
+                            },
+                            color: '#374151'
+                          },
+                          grid: {
+                            display: false
+                          },
+                          ticks: {
+                            font: {
+                              size: 11
+                            },
+                            color: '#6B7280'
+                          }
+                        },
+                        y: {
+                          title: {
+                            display: true,
+                            text: 'Corpus Value (₹)',
+                            font: {
+                              size: 13,
+                              weight: '600'
+                            },
+                            color: '#374151'
+                          },
+                          ticks: {
+                            callback: function(value) {
+                              if (value >= 10000000) {
+                                return '₹' + (value / 10000000).toFixed(1) + 'Cr'
+                              } else if (value >= 100000) {
+                                return '₹' + (value / 100000).toFixed(1) + 'L'
+                              }
+                              return '₹' + value.toLocaleString('en-IN')
+                            },
+                            font: {
+                              size: 11
+                            },
+                            color: '#6B7280'
+                          },
+                          grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                          }
+                        }
+                      }
+                    }}
+                  />
+                )}
+              </div>
+              <div className="mt-4 flex items-center justify-center gap-6 text-xs text-gray-600">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-0.5 bg-blue-500"></div>
+                  <span>Nominal: Future value at retirement</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-0.5 bg-green-500"></div>
+                  <span>Real: Adjusted for {inputs.inflationRate}% inflation</span>
+                </div>
+              </div>
             </div>
 
           </div>
