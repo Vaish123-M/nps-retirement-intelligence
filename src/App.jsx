@@ -451,15 +451,16 @@ function App() {
             </div>
 
           </div>
+        </div>
 
-          {/* Scenario Comparison Section - Full Width */}
-          <div className="mt-8 bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
-              Scenario Comparison
-            </h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Compare retirement outcomes across different risk-return profiles
-            </p>
+        {/* Scenario Comparison Section - Full Width */}
+        <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            Scenario Comparison
+          </h2>
+          <p className="text-sm text-gray-600 mb-6">
+            Compare retirement outcomes across different risk-return profiles
+          </p>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Conservative Scenario */}
@@ -668,6 +669,191 @@ function App() {
             </div>
           </div>
 
+          {/* Corpus Projection Chart - Full Width */}
+          <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              Corpus Growth Projection
+            </h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Visual projection of your retirement corpus over time
+            </p>
+            <div className="h-96">
+              {results.yearlyProjection && results.yearlyProjection.length > 0 && (
+                <Line
+                  data={{
+                    labels: results.yearlyProjection.map(item => item.age),
+                    datasets: [
+                      {
+                        label: 'Nominal Corpus (Future Value)',
+                        data: results.yearlyProjection.map(item => item.corpusAfterReturn),
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: 'rgb(59, 130, 246)',
+                        pointHoverBorderColor: 'white',
+                        pointHoverBorderWidth: 2,
+                      },
+                      {
+                        label: 'Inflation-Adjusted Corpus (Real Value)',
+                        data: results.yearlyProjection.map((item, index) => {
+                          const yearsFromNow = index
+                          const inflationRate = inputs.inflationRate / 100
+                          return item.corpusAfterReturn / Math.pow(1 + inflationRate, yearsFromNow)
+                        }),
+                        borderColor: 'rgb(34, 197, 94)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: 'rgb(34, 197, 94)',
+                        pointHoverBorderColor: 'white',
+                        pointHoverBorderWidth: 2,
+                      }
+                    ]
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                      mode: 'index',
+                      intersect: false,
+                    },
+                    plugins: {
+                      legend: {
+                        position: 'top',
+                        labels: {
+                          usePointStyle: true,
+                          padding: 15,
+                          font: {
+                            size: 12,
+                            weight: '500'
+                          }
+                        }
+                      },
+                      tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: 'white',
+                        bodyColor: 'white',
+                        titleFont: {
+                          size: 13,
+                          weight: 'bold'
+                        },
+                        bodyFont: {
+                          size: 12
+                        },
+                        padding: 12,
+                        displayColors: true,
+                        callbacks: {
+                          title: function(context) {
+                            return `Age: ${context[0].label} years`
+                          },
+                          label: function(context) {
+                            let label = context.dataset.label || ''
+                            if (label) {
+                              label += ': '
+                            }
+                            const value = context.parsed.y
+                            label += new Intl.NumberFormat('en-IN', {
+                              style: 'currency',
+                              currency: 'INR',
+                              maximumFractionDigits: 0
+                            }).format(value)
+                            return label
+                          },
+                          afterBody: function(context) {
+                            const dataIndex = context[0].dataIndex
+                            const projection = results.yearlyProjection[dataIndex]
+                            if (projection) {
+                              return [
+                                '',
+                                `Year: ${projection.yearNumber}`,
+                                `Contributions: ${new Intl.NumberFormat('en-IN', {
+                                  style: 'currency',
+                                  currency: 'INR',
+                                  maximumFractionDigits: 0
+                                }).format(projection.cumulativeContributions)}`
+                              ]
+                            }
+                            return []
+                          }
+                        }
+                      }
+                    },
+                    scales: {
+                      x: {
+                        title: {
+                          display: true,
+                          text: 'Age (Years)',
+                          font: {
+                            size: 13,
+                            weight: '600'
+                          },
+                          color: '#374151'
+                        },
+                        grid: {
+                          display: false
+                        },
+                        ticks: {
+                          font: {
+                            size: 11
+                          },
+                          color: '#6B7280'
+                        }
+                      },
+                      y: {
+                        title: {
+                          display: true,
+                          text: 'Corpus Value (₹)',
+                          font: {
+                            size: 13,
+                            weight: '600'
+                          },
+                          color: '#374151'
+                        },
+                        ticks: {
+                          callback: function(value) {
+                            if (value >= 10000000) {
+                              return '₹' + (value / 10000000).toFixed(1) + 'Cr'
+                            } else if (value >= 100000) {
+                              return '₹' + (value / 100000).toFixed(1) + 'L'
+                            }
+                            return '₹' + value.toLocaleString('en-IN')
+                          },
+                          font: {
+                            size: 11
+                          },
+                          color: '#6B7280'
+                        },
+                        grid: {
+                          color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                      }
+                    }
+                  }}
+                />
+              )}
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-6 text-xs text-gray-600">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-0.5 bg-blue-500"></div>
+                <span>Nominal: Future value at retirement</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-0.5 bg-green-500"></div>
+                <span>Real: Adjusted for {inputs.inflationRate}% inflation</span>
+              </div>
+            </div>
+          </div>
+
+        {/* Two Column Layout - Inputs and Results */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+          
           {/* Left Column - Inputs */}
           <div className="space-y-6">
 
@@ -1092,185 +1278,6 @@ function App() {
                   </p>
                 </div>
               )}
-            </div>
-
-            {/* Corpus Projection Chart */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
-                Corpus Growth Projection
-              </h2>
-              <div className="h-80">
-                {results.yearlyProjection && results.yearlyProjection.length > 0 && (
-                  <Line
-                    data={{
-                      labels: results.yearlyProjection.map(item => item.age),
-                      datasets: [
-                        {
-                          label: 'Nominal Corpus (Future Value)',
-                          data: results.yearlyProjection.map(item => item.corpusAfterReturn),
-                          borderColor: 'rgb(59, 130, 246)',
-                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                          borderWidth: 3,
-                          fill: true,
-                          tension: 0.4,
-                          pointRadius: 0,
-                          pointHoverRadius: 6,
-                          pointHoverBackgroundColor: 'rgb(59, 130, 246)',
-                          pointHoverBorderColor: 'white',
-                          pointHoverBorderWidth: 2,
-                        },
-                        {
-                          label: 'Inflation-Adjusted Corpus (Real Value)',
-                          data: results.yearlyProjection.map((item, index) => {
-                            const yearsFromNow = index
-                            const inflationRate = inputs.inflationRate / 100
-                            return item.corpusAfterReturn / Math.pow(1 + inflationRate, yearsFromNow)
-                          }),
-                          borderColor: 'rgb(34, 197, 94)',
-                          backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                          borderWidth: 3,
-                          fill: true,
-                          tension: 0.4,
-                          pointRadius: 0,
-                          pointHoverRadius: 6,
-                          pointHoverBackgroundColor: 'rgb(34, 197, 94)',
-                          pointHoverBorderColor: 'white',
-                          pointHoverBorderWidth: 2,
-                        }
-                      ]
-                    }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      interaction: {
-                        mode: 'index',
-                        intersect: false,
-                      },
-                      plugins: {
-                        legend: {
-                          position: 'top',
-                          labels: {
-                            usePointStyle: true,
-                            padding: 15,
-                            font: {
-                              size: 12,
-                              weight: '500'
-                            }
-                          }
-                        },
-                        tooltip: {
-                          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                          titleColor: 'white',
-                          bodyColor: 'white',
-                          titleFont: {
-                            size: 13,
-                            weight: 'bold'
-                          },
-                          bodyFont: {
-                            size: 12
-                          },
-                          padding: 12,
-                          displayColors: true,
-                          callbacks: {
-                            title: function(context) {
-                              return `Age: ${context[0].label} years`
-                            },
-                            label: function(context) {
-                              let label = context.dataset.label || ''
-                              if (label) {
-                                label += ': '
-                              }
-                              const value = context.parsed.y
-                              label += new Intl.NumberFormat('en-IN', {
-                                style: 'currency',
-                                currency: 'INR',
-                                maximumFractionDigits: 0
-                              }).format(value)
-                              return label
-                            },
-                            afterBody: function(context) {
-                              const dataIndex = context[0].dataIndex
-                              const projection = results.yearlyProjection[dataIndex]
-                              if (projection) {
-                                return [
-                                  '',
-                                  `Year: ${projection.yearNumber}`,
-                                  `Contributions: ${new Intl.NumberFormat('en-IN', {
-                                    style: 'currency',
-                                    currency: 'INR',
-                                    maximumFractionDigits: 0
-                                  }).format(projection.cumulativeContributions)}`
-                                ]
-                              }
-                              return []
-                            }
-                          }
-                        }
-                      },
-                      scales: {
-                        x: {
-                          title: {
-                            display: true,
-                            text: 'Age (Years)',
-                            font: {
-                              size: 13,
-                              weight: '600'
-                            },
-                            color: '#374151'
-                          },
-                          grid: {
-                            display: false
-                          },
-                          ticks: {
-                            font: {
-                              size: 11
-                            },
-                            color: '#6B7280'
-                          }
-                        },
-                        y: {
-                          title: {
-                            display: true,
-                            text: 'Corpus Value (₹)',
-                            font: {
-                              size: 13,
-                              weight: '600'
-                            },
-                            color: '#374151'
-                          },
-                          ticks: {
-                            callback: function(value) {
-                              if (value >= 10000000) {
-                                return '₹' + (value / 10000000).toFixed(1) + 'Cr'
-                              } else if (value >= 100000) {
-                                return '₹' + (value / 100000).toFixed(1) + 'L'
-                              }
-                              return '₹' + value.toLocaleString('en-IN')
-                            },
-                            font: {
-                              size: 11
-                            },
-                            color: '#6B7280'
-                          },
-                          grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                          }
-                        }
-                      }
-                    }}
-                  />
-                )}
-              </div>
-              <div className="mt-4 flex items-center justify-center gap-6 text-xs text-gray-600">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-0.5 bg-blue-500"></div>
-                  <span>Nominal: Future value at retirement</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-0.5 bg-green-500"></div>
-                  <span>Real: Adjusted for {inputs.inflationRate}% inflation</span>
-                </div>
-              </div>
             </div>
 
           </div>
