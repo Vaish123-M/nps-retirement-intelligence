@@ -45,34 +45,55 @@ function App() {
   
   // Input states
   const [inputs, setInputs] = useState({
-    currentAge: 30,
-    retirementAge: 60,
-    monthlyContribution: 10000,
-    currentCorpus: 0,
-    annualStepUp: 5,
-    inflationRate: 6,
-    lastMonthlySalary: 100000,
-    expectedMonthlyExpense: 50000,
-    targetCorpus: 10000000
+    currentAge: '',
+    retirementAge: '',
+    monthlyContribution: '',
+    currentCorpus: '',
+    annualStepUp: '',
+    inflationRate: '',
+    lastMonthlySalary: '',
+    expectedMonthlyExpense: '',
+    targetCorpus: ''
   })
 
   // Reverse planning results state
   const [reversePlanResults, setReversePlanResults] = useState(null)
 
-  const [desiredPension, setDesiredPension] = useState(50000)
+  const [desiredPension, setDesiredPension] = useState('')
+
+  const toNumber = (value) => {
+    if (value === '' || value === null || value === undefined) {
+      return 0
+    }
+
+    const parsedValue = parseFloat(value)
+    return Number.isNaN(parsedValue) ? 0 : parsedValue
+  }
+
+  const numericInputs = useMemo(() => ({
+    currentAge: toNumber(inputs.currentAge),
+    retirementAge: toNumber(inputs.retirementAge),
+    monthlyContribution: toNumber(inputs.monthlyContribution),
+    currentCorpus: toNumber(inputs.currentCorpus),
+    annualStepUp: toNumber(inputs.annualStepUp),
+    inflationRate: toNumber(inputs.inflationRate),
+    lastMonthlySalary: toNumber(inputs.lastMonthlySalary),
+    expectedMonthlyExpense: toNumber(inputs.expectedMonthlyExpense),
+    targetCorpus: toNumber(inputs.targetCorpus)
+  }), [inputs])
 
   const results = useMemo(() => {
     const expectedAnnualReturn = scenarioRates[scenario]
 
     // Step 1: Calculate retirement corpus
     const corpusResult = calculateRetirementCorpus({
-      currentAge: inputs.currentAge,
-      retirementAge: inputs.retirementAge,
-      monthlyContribution: inputs.monthlyContribution,
+      currentAge: numericInputs.currentAge,
+      retirementAge: numericInputs.retirementAge,
+      monthlyContribution: numericInputs.monthlyContribution,
       expectedAnnualReturn,
-      annualStepUp: inputs.annualStepUp,
-      currentCorpus: inputs.currentCorpus,
-      inflationRate: inputs.inflationRate
+      annualStepUp: numericInputs.annualStepUp,
+      currentCorpus: numericInputs.currentCorpus,
+      inflationRate: numericInputs.inflationRate
     })
 
     // Step 2: Calculate NPS withdrawal breakdown
@@ -81,20 +102,20 @@ function App() {
     // Step 3: Calculate pension sustainability
     const sustainabilityResult = calculatePensionSustainability({
       lumpSumAmount: withdrawalResult.lumpSumAmount,
-      monthlyExpense: inputs.expectedMonthlyExpense,
+      monthlyExpense: numericInputs.expectedMonthlyExpense,
       postRetirementReturn: 7,
-      inflationRate: inputs.inflationRate
+      inflationRate: numericInputs.inflationRate
     })
 
     // Step 4: Calculate retirement readiness score with enhanced metrics
-    const lifeExpectancyYears = (inputs.retirementAge + 25) - inputs.retirementAge;
+    const lifeExpectancyYears = (numericInputs.retirementAge + 25) - numericInputs.retirementAge;
     const readinessResult = calculateRetirementReadiness({
       monthlyPension: withdrawalResult.monthlyPension,
-      lastMonthlySalary: inputs.lastMonthlySalary,
+      lastMonthlySalary: numericInputs.lastMonthlySalary,
       yearsSustainable: sustainabilityResult.yearsOfSustainability,
       lifeExpectancyYears,
       inflationAdjustedCorpus: corpusResult.inflationAdjustedCorpus,
-      targetCorpus: inputs.targetCorpus,
+      targetCorpus: numericInputs.targetCorpus,
       projectedCorpus: corpusResult.totalCorpus
     })
 
@@ -117,7 +138,7 @@ function App() {
       scoringBreakdown: readinessResult.scoringBreakdown,
       yearlyProjection: corpusResult.yearlyProjection
     }
-  }, [inputs, scenario])
+  }, [numericInputs, scenario])
 
   const scenarioComparison = useMemo(() => {
     const scenarios = ['conservative', 'moderate', 'aggressive']
@@ -128,13 +149,13 @@ function App() {
 
       // Calculate corpus for this scenario
       const corpusResult = calculateRetirementCorpus({
-        currentAge: inputs.currentAge,
-        retirementAge: inputs.retirementAge,
-        monthlyContribution: inputs.monthlyContribution,
+        currentAge: numericInputs.currentAge,
+        retirementAge: numericInputs.retirementAge,
+        monthlyContribution: numericInputs.monthlyContribution,
         expectedAnnualReturn,
-        annualStepUp: inputs.annualStepUp,
-        currentCorpus: inputs.currentCorpus,
-        inflationRate: inputs.inflationRate
+        annualStepUp: numericInputs.annualStepUp,
+        currentCorpus: numericInputs.currentCorpus,
+        inflationRate: numericInputs.inflationRate
       })
 
       // Calculate NPS withdrawal
@@ -154,10 +175,10 @@ function App() {
     })
 
     return comparisonResults
-  }, [inputs])
+  }, [numericInputs])
 
   const pensionGap = useMemo(() => {
-    const desired = desiredPension
+    const desired = toNumber(desiredPension)
     const estimated = results.monthlyPension
     const gap = desired - estimated
     const gapPercent = desired > 0 ? (gap / desired) * 100 : 0
@@ -168,7 +189,7 @@ function App() {
     let suggestedIncrease = 0
     if (hasGap && gap > 0) {
       // Simple approximation: increase contribution proportionally to gap
-      const currentContribution = inputs.monthlyContribution
+      const currentContribution = numericInputs.monthlyContribution
       const gapRatio = gap / (estimated > 0 ? estimated : 1)
       suggestedIncrease = Math.round(currentContribution * gapRatio * 0.5) // 50% of proportional increase as estimate
     }
@@ -181,16 +202,16 @@ function App() {
       hasGap: hasGap,
       suggestedContributionIncrease: suggestedIncrease
     }
-  }, [desiredPension, results.monthlyPension, inputs.monthlyContribution])
+  }, [desiredPension, results.monthlyPension, numericInputs.monthlyContribution])
 
   const handlePensionGapInputChange = (value) => {
-    setDesiredPension(parseFloat(value) || 0)
+    setDesiredPension(value)
   }
 
   const handleInputChange = (field, value) => {
     setInputs(prev => ({
       ...prev,
-      [field]: parseFloat(value) || 0
+      [field]: value
     }))
   }
 
@@ -198,18 +219,18 @@ function App() {
     const expectedAnnualReturn = scenarioRates[scenario]
     
     const requiredContribution = calculateRequiredContribution({
-      targetCorpus: inputs.targetCorpus,
-      currentAge: inputs.currentAge,
-      retirementAge: inputs.retirementAge,
+      targetCorpus: numericInputs.targetCorpus,
+      currentAge: numericInputs.currentAge,
+      retirementAge: numericInputs.retirementAge,
       expectedAnnualReturn,
-      annualStepUp: inputs.annualStepUp,
-      currentCorpus: inputs.currentCorpus,
-      inflationRate: inputs.inflationRate
+      annualStepUp: numericInputs.annualStepUp,
+      currentCorpus: numericInputs.currentCorpus,
+      inflationRate: numericInputs.inflationRate
     })
 
     setInputs(prev => ({
       ...prev,
-      monthlyContribution: requiredContribution
+      monthlyContribution: String(requiredContribution)
     }))
   }
 
@@ -218,13 +239,13 @@ function App() {
     
     // Calculate reverse plan based on desired monthly pension
     const reversePlan = calculateReverseRetirementPlan({
-      desiredMonthlyPension: inputs.expectedMonthlyExpense,
-      currentAge: inputs.currentAge,
-      retirementAge: inputs.retirementAge,
+      desiredMonthlyPension: numericInputs.expectedMonthlyExpense,
+      currentAge: numericInputs.currentAge,
+      retirementAge: numericInputs.retirementAge,
       expectedReturn: expectedAnnualReturn,
-      inflationRate: inputs.inflationRate,
-      annualStepUp: inputs.annualStepUp,
-      currentCorpus: inputs.currentCorpus
+      inflationRate: numericInputs.inflationRate,
+      annualStepUp: numericInputs.annualStepUp,
+      currentCorpus: numericInputs.currentCorpus
     })
 
     setReversePlanResults(reversePlan)
@@ -232,8 +253,8 @@ function App() {
     // Optionally update the inputs with calculated values
     setInputs(prev => ({
       ...prev,
-      targetCorpus: reversePlan.requiredFutureCorpus,
-      monthlyContribution: reversePlan.requiredMonthlyContribution
+      targetCorpus: String(reversePlan.requiredFutureCorpus),
+      monthlyContribution: String(reversePlan.requiredMonthlyContribution)
     }))
   }
 
@@ -245,7 +266,7 @@ function App() {
     }).format(amount)
   }
 
-  const lifeExpectancy = inputs.retirementAge + 25
+  const lifeExpectancy = numericInputs.retirementAge + 25
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -763,7 +784,7 @@ function App() {
                         label: 'Inflation-Adjusted Corpus (Real Value)',
                         data: results.yearlyProjection.map((item, index) => {
                           const yearsFromNow = index
-                          const inflationRate = inputs.inflationRate / 100
+                          const inflationRate = numericInputs.inflationRate / 100
                           return item.corpusAfterReturn / Math.pow(1 + inflationRate, yearsFromNow)
                         }),
                         borderColor: 'rgb(34, 197, 94)',
@@ -908,7 +929,7 @@ function App() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-0.5 bg-green-500"></div>
-                <span>Real: Adjusted for {inputs.inflationRate}% inflation</span>
+                <span>Real: Adjusted for {numericInputs.inflationRate}% inflation</span>
               </div>
             </div>
           </div>
@@ -1018,7 +1039,7 @@ function App() {
                   </label>
                   <input
                     type="number"
-                    value={pensionGap.desiredPension}
+                    value={desiredPension}
                     onChange={(e) => handlePensionGapInputChange(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
@@ -1089,7 +1110,7 @@ function App() {
                               {formatCurrency(pensionGap.suggestedContributionIncrease)}
                             </div>
                             <div className="text-xs text-blue-600 mt-2 wrap-break-word">
-                              New contribution: {formatCurrency(inputs.monthlyContribution + pensionGap.suggestedContributionIncrease)}
+                              New contribution: {formatCurrency(numericInputs.monthlyContribution + pensionGap.suggestedContributionIncrease)}
                             </div>
                           </div>
                         </div>
@@ -1143,7 +1164,7 @@ function App() {
                     {formatCurrency(results.nominalCorpus || results.totalCorpus)}
                   </div>
                   <div className="text-xs text-gray-600 mt-2">
-                    At age {inputs.retirementAge} • {inputs.retirementAge - inputs.currentAge} years
+                    At age {numericInputs.retirementAge} • {numericInputs.retirementAge - numericInputs.currentAge} years
                   </div>
                 </div>
 
@@ -1152,7 +1173,7 @@ function App() {
                   <div className="text-sm text-gray-600 mb-1 flex items-center justify-between gap-2">
                     <span>Real Value (Today's Money)</span>
                     <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
-                      @ {inputs.inflationRate}% inflation
+                      @ {numericInputs.inflationRate}% inflation
                     </span>
                   </div>
                   <div className="text-2xl md:text-3xl font-bold text-green-700 wrap-break-word">
@@ -1209,14 +1230,14 @@ function App() {
                 <div className="flex justify-between items-start gap-3">
                   <span className="text-sm text-gray-600 pr-2">Expected Expense</span>
                   <span className="text-lg font-semibold text-gray-800 text-right wrap-break-word max-w-[60%]">
-                    {formatCurrency(inputs.expectedMonthlyExpense)}
+                    {formatCurrency(numericInputs.expectedMonthlyExpense)}
                   </span>
                 </div>
                 <div className="flex justify-between items-start gap-3 pt-2 border-t border-gray-200">
                   <span className="text-sm text-gray-600 pr-2">Pension Coverage</span>
                   <span className="text-lg font-semibold text-blue-600 text-right max-w-[60%]">
-                    {inputs.expectedMonthlyExpense > 0 
-                      ? Math.round((results.monthlyPension / inputs.expectedMonthlyExpense) * 100)
+                    {numericInputs.expectedMonthlyExpense > 0 
+                      ? Math.round((results.monthlyPension / numericInputs.expectedMonthlyExpense) * 100)
                       : 0}%
                   </span>
                 </div>
